@@ -8,7 +8,8 @@ Press **F8** or click **AI Settings** in the main or pause menu to configure you
 - Test the connection and the structured response format expected by callers.
 - Optionally override temperature, top-p, and response token limits.
 - See custom-provider status in the main menu instead of the original AI sign-in status.
-- Keep the game's existing Whisper, PocketTTS, and MOSS speech pipeline.
+
+This mod only replaces the text-generation provider. Speech recognition and voice synthesis are handled by the game and are not modified.
 
 This is an unofficial Windows Mono Playtest mod. It checks the game methods and libraries it uses, patches two managed assemblies, and keeps verified originals for each game version. It does not include game binaries.
 
@@ -69,6 +70,67 @@ The installer backs up the original assemblies under `<game>/CustomAI/backup/`. 
 7. Host a lobby and start a call. New requests use the saved settings; an in-flight request keeps its existing settings.
 
 The browser panel listens only on `127.0.0.1`, uses a dynamically assigned port, and closes with the game. Open it through F8 rather than bookmarking an old session URL.
+
+### Six provider options to try
+
+These options provide or route an OpenAI-compatible API for the mod. **Free does not mean unlimited, and API compatibility does not guarantee every model will work.** The two cloud options have free usage limits; routers depend on the connected provider's access and billing; the three local model servers avoid per-request cloud charges but use your own hardware and electricity. Check current terms and model licenses before use.
+
+These are setup suggestions, not a list of services all tested end to end in this game. After choosing a model, run **Test Connection**, then try an actual call. Keep responses within the game's **15-second deadline**. Do not append `/chat/completions` to the Base URLs below.
+
+#### 1. OpenRouter — free cloud models
+
+- **Base URL:** `https://openrouter.ai/api/v1`
+- **API key:** create an OpenRouter account and API key.
+- **Model ID:** select a currently available model with the **`:free`** suffix from the [model catalog](https://openrouter.ai/models). Choose one whose endpoint supports structured outputs.
+- **Output mode:** start with **JSON Schema**; use **JSON compatibility mode** only if the model supports JSON mode instead.
+- **Free-use limits:** free variants have availability and rate limits that differ from paid variants. Keep the `:free` suffix; selecting the paid variant changes billing. Check your account's current limits rather than assuming unlimited calls.
+- **Official docs:** [Free variants](https://openrouter.ai/docs/guides/routing/model-variants/free) · [Limits](https://openrouter.ai/docs/api/reference/limits).
+
+#### 2. Google Gemini API — cloud free tier
+
+- **Base URL:** `https://generativelanguage.googleapis.com/v1beta/openai`
+- **API key:** create a Gemini API key in [Google AI Studio](https://aistudio.google.com/).
+- **Model ID:** choose a current model listed with a **Free Tier**, preferably a fast Flash model that supports structured output. Copy its exact API model ID; model availability changes.
+- **Output mode:** **JSON Schema**, using Google's OpenAI-compatible endpoint above.
+- **Free-use limits:** eligibility, quotas, and model availability depend on the current tier and region. Stay within the free tier and check billing before enabling paid usage. Review the free-tier data-use terms on the pricing page.
+- **Official docs:** [OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai) · [Pricing and free tier](https://ai.google.dev/gemini-api/docs/pricing).
+
+#### 3. OmniRoute / 9Router — use a provider router
+
+- **When to choose this:** if you already use OmniRoute or 9Router to manage provider connections, point the mod at its OpenAI-compatible endpoint. You do not need to run a local language model just because the router runs on your PC.
+- **Base URL:** copy the OpenAI-compatible API base address shown by your router. Use its configured host, port, and API prefix; do not paste a dashboard URL or the full `/chat/completions` endpoint.
+- **API key:** enter the router's client-facing API key if required. Configure upstream provider credentials in the router itself.
+- **Model ID:** use the exact model ID or route alias exposed by the router, rather than assuming the upstream model name is accepted unchanged.
+- **Output mode:** start with **JSON Schema** and select a route whose upstream model supports structured output. Use **JSON compatibility mode** only if the selected route supports JSON mode instead.
+- **Free-use limits:** a router does not make paid inference free. Use a connected provider's eligible free tier or free model if you want to avoid inference charges; upstream quotas, subscriptions, and terms still apply. Check any automatic fallback routes for paid models.
+- **Validation:** keep the router running, test the connection from F8, then try a call. Routing and upstream generation must together fit within the 15-second deadline.
+
+#### 4. LM Studio — local model server
+
+- **Base URL:** `http://127.0.0.1:1234/v1` when using the default server port.
+- **API key:** leave blank by default; enter your server token if you enable authentication.
+- **Setup / Model ID:** install [LM Studio](https://lmstudio.ai/), download and load an instruction/chat model, then start its local server. Copy the loaded model's API identifier from LM Studio.
+- **Output mode:** **JSON Schema** with a model that supports structured output.
+- **Free-use limits:** local inference has no cloud request bill. RAM/VRAM and inference speed determine usability; a model that runs alongside the game without exceeding the deadline is more useful than a larger, slower one.
+- **Official docs:** [OpenAI compatibility](https://lmstudio.ai/docs/developer/openai-compat) · [Structured output](https://lmstudio.ai/docs/developer/openai-compat/structured-output) · [Offline operation](https://lmstudio.ai/docs/app/offline).
+
+#### 5. Ollama — local model server
+
+- **Base URL:** `http://127.0.0.1:11434/v1`
+- **API key:** leave blank for the local server; its OpenAI compatibility examples use a placeholder key that local Ollama ignores.
+- **Setup / Model ID:** install [Ollama](https://ollama.com/), download a local instruction/chat model, and use its exact installed name from `ollama list`.
+- **Output mode:** **JSON Schema** for supported local models. Preload the model before playing so its cold start does not consume the caller deadline.
+- **Free-use limits:** this recommendation is for models running **locally**, not Ollama Cloud. Local inference uses your hardware without per-request charges; cloud plans have separate limits and billing.
+- **Official docs:** [OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility) · [Preloading and local operation](https://docs.ollama.com/faq) · [Local versus cloud pricing](https://ollama.com/pricing).
+
+#### 6. LocalAI — self-hosted local API
+
+- **Base URL:** `http://127.0.0.1:8080/v1` when deployed locally on port 8080.
+- **API key:** use the key configured for your LocalAI server, or leave blank only if that server has authentication disabled.
+- **Setup / Model ID:** install [LocalAI](https://localai.io/), load a text-generation model, and use the model name exposed by your server. On Windows, its container deployment is an option if you already use Docker.
+- **Output mode:** choose a model/backend supporting structured output and start with **JSON Schema**; test the selected backend before playing.
+- **Free-use limits:** LocalAI is open source and self-hosted. Running it on your own hardware avoids a hosted inference bill; rented servers and model licensing may have separate costs. Setup is more involved than the desktop alternatives above.
+- **Official sources:** [Project and setup](https://github.com/mudler/LocalAI) · [Default container port configuration](https://github.com/mudler/LocalAI/blob/master/docker-compose.yaml).
 
 ### Advanced settings
 
