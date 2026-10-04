@@ -21,6 +21,7 @@ public static class Program
 
     public static int Main(string[] args)
     {
+        if (args is ["--check-runtime"]) { Console.WriteLine("SWYF_RUNTIME_OK"); return 0; }
         try
         {
             if (args.Length < 2 || args[0] is not ("install" or "uninstall" or "verify" or "launch"))

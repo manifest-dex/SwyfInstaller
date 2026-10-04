@@ -9,6 +9,10 @@ if ([string]::IsNullOrWhiteSpace($GameDir)) { throw 'Pass -GameDir or set SWYF_G
 $package = if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'installer')) { $PSScriptRoot } else { Join-Path $PSScriptRoot 'dist' }
 $installer = Join-Path $package 'installer/SWYF.CustomAI.Installer.exe'
 if (!(Test-Path -LiteralPath $installer)) { throw 'Run build.ps1 first.' }
+if ($Action -eq 'install') {
+    & "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $package 'prerequisites.ps1') -PackageDir $package
+    if ($LASTEXITCODE -ne 0) { throw 'Prerequisites are not ready. The mod was not installed. Read the message above.' }
+}
 $installerArgs = @($Action, $GameDir, $package)
 if ($Action -eq 'install' -and $null -ne $DisableKolkata) { $installerArgs += '--disable-kolkata=' + $DisableKolkata.ToString().ToLowerInvariant() }
 & $installer @installerArgs

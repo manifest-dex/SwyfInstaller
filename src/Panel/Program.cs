@@ -250,8 +250,11 @@ public sealed class Provider : IDisposable
 
 public static class Program
 {
-    public static async Task<int> Main()
+    public static async Task<int> Main(string[] args)
     {
+        // The native apphost resolves both shared frameworks before reaching Main.
+        // Setup can verify this without opening a listener or touching user settings.
+        if (args is ["--check-runtime"]) { Console.WriteLine("SWYF_RUNTIME_OK"); return 0; }
         try { return await Run(); }
         catch { Console.Error.WriteLine("[CustomAI] Could not start the panel; check the configuration and .NET 10 installation."); return 1; }
     }

@@ -21,13 +21,13 @@ This is an unofficial Windows Mono Playtest mod. It checks the game methods and 
 You need:
 
 - **Windows x64** and a compatible **Scam With Your Friends Playtest** installation. Originally tested on Unity **6000.3.10f1**; later Mono builds are accepted when their hook signatures, call sites, UI identifiers, and required library members pass compatibility checks.
-- **[ASP.NET Core Runtime 10, Windows x64](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)**. The base .NET Runtime alone is not enough for the settings panel.
+- **.NET Runtime 10 and ASP.NET Core Runtime 10, Windows x64**. The installer checks both and downloads missing runtimes from Microsoft. Internet access and approval of the Windows administrator prompt are needed only if a runtime is missing. For offline setup, [install both runtimes manually](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) first. The base .NET Runtime alone is not enough for the settings panel.
 - An OpenAI-compatible **Chat Completions** endpoint and a model capable of returning the game's structured JSON responses. Keyless local endpoints are supported.
 
 1. Close the game and wait for Steam downloads to finish.
 2. In Steam, open **Properties > Installed Files > Browse**.
 3. Extract **all contents** of `SWYF-Custom-AI-win-x64.zip` directly into that folder.
-4. Double-click **Install Custom AI.cmd**. It automatically uses the folder containing the script. At **Disable the Kolkata API? [Y]es / [N]o:**, press **Y** to disable Kolkata or **N** to leave it enabled. The installer saves your choice in `customai.toml` next to the game executable.
+4. Double-click **Install Custom AI.cmd**. It checks the required runtimes before modifying the game. If a runtime is missing, wait for the Microsoft download and approve the Windows administrator prompt. If a restart is requested, restart Windows and run the script again. At **Disable the Kolkata API? [Y]es / [N]o:**, press **Y** to disable Kolkata or **N** to leave it enabled. The installer saves your choice in `customai.toml` next to the game executable.
 5. Start the game and press **F8** to configure your provider.
 
 The resulting layout should look like this:
@@ -42,12 +42,15 @@ Scam With Your Friends Playtest/
   CustomAI/
     README.md
     package/
+      prerequisites.ps1
       bridge/
       panel/
       installer/
 ```
 
-Extracting the ZIP places the mod files; the one-time install step applies the patch. The ZIP does not overwrite game assemblies directly or include settings/backups. **PowerShell 7 is not required for this release workflow.** ASP.NET Core Runtime 10 x64 is still required.
+Extracting the ZIP places the mod files; the one-time install step applies the patch. The ZIP does not overwrite game assemblies directly or include settings/backups. **PowerShell 7 is not required:** runtime setup uses the Windows PowerShell included with Windows. Downloads are checked against Microsoft's SHA-512 checksum and Authenticode signature before installation. Computers with working runtimes need no download or administrator prompt.
+
+If **F8 / AI Settings does nothing**, close the game and run **Install Custom AI.cmd** again. It checks whether the actual settings panel and mod installer can load their runtimes, including when .NET is installed outside PATH. A failed download, canceled administrator prompt or unusable runtime stops setup with an explanation. On managed PCs where PowerShell or runtime installation is blocked, use the manual runtime link above or contact your administrator.
 
 For developers or an unpacked `dist/` folder, the PowerShell installation command also remains available:
 
@@ -266,7 +269,7 @@ dist/
   README.md
 ```
 
-The build also creates **`artifacts/SWYF-Custom-AI-win-x64.zip`**, ready to attach to a GitHub Release. It contains the three clickable CMD helpers and the `CustomAI/package/` payload, with no outer ZIP folder. The package is framework-dependent: recipients still need ASP.NET Core Runtime 10. No game DLLs, settings, credentials, or backups belong in that package.
+The build also creates **`artifacts/SWYF-Custom-AI-win-x64.zip`**, ready to attach to a GitHub Release. It contains the three clickable CMD helpers, the prerequisite bootstrap and the `CustomAI/package/` payload, with no outer ZIP folder. The package is framework-dependent: **Install Custom AI.cmd** installs missing .NET 10 and ASP.NET Core 10 x64 runtimes before patching. No game DLLs, settings, credentials, or backups belong in that package.
 
 ## Run tests
 
@@ -275,12 +278,16 @@ Build the package first. The default suite uses a local fake provider and dispos
 ```powershell
 $env:SWYF_GAME_DIR = '<your-game-folder>'
 dotnet run --project tests/Tests.csproj -c Release
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/prerequisites.test.ps1
+node tests/signin-ui.test.mjs
 
 # Skip installer tests while the game is running.
 dotnet run --project tests/Tests.csproj -c Release -- --provider-only
 ```
 
 Coverage includes request conversion, JSON compatibility, unsupported sampling parameters, timeouts/cancellation, authentication boundaries, credential redaction, settings persistence, provider status, process shutdown, installation, reinstall, uninstall, simulated compatible/partial updates, and incompatible-hook rejection. Simulated updates validate the patch lifecycle; they do not substitute for testing future game releases.
+
+Prerequisite tests use Windows PowerShell 5.1 and simulate downloads, administrator cancellation, installer failures and restart requirements. They also load the real packaged applications against both installed runtimes and an isolated base-only .NET runtime. No runtime installer is executed and no installed runtime is changed by these tests.
 
 An optional live check reads your installed settings and sends a request to that provider; it can incur charges:
 

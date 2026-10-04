@@ -11,7 +11,7 @@ cd 'C:\Users\berke\source\repos\SWYF Custom AI Mod'
 ./release.ps1 -Tag v1.1.0 -BuildOnly -GameDir 'D:\SteamLibrary\steamapps\common\Scam With Your Friends Playtest'
 ```
 
-This builds the production bridge/panel/installer, verifies bridge references against your game, runs the provider/installer tests on disposable copies, and checks the sign-in UI. It creates:
+This builds the production bridge and x64 panel/installer, verifies bridge references against your game, runs prerequisite regressions under Windows PowerShell 5.1, runs the provider/installer tests on disposable copies, and checks the sign-in UI. Prerequisite tests cover missing runtimes, download/signature failures, cancellation, restart requirements and post-install checks without installing anything. They also probe the built applications against the installed runtimes. It creates:
 
 - `artifacts/SWYF-Custom-AI-v1.1.0-win-x64.zip`
 - `artifacts/SWYF-Custom-AI-v1.1.0-win-x64.zip.sha256`

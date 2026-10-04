@@ -53,6 +53,8 @@ try {
 
     & ./build.ps1 -GameDir $GameDir
     if ($LASTEXITCODE -ne 0) { throw 'Release build failed.' }
+    & "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File tests/prerequisites.test.ps1
+    if ($LASTEXITCODE -ne 0) { throw 'Prerequisite setup tests failed; nothing was published.' }
     $env:SWYF_GAME_DIR = $GameDir
     dotnet run --project tests/Tests.csproj -c Release
     if ($LASTEXITCODE -ne 0) { throw 'Release tests failed; nothing was published.' }

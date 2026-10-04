@@ -7,6 +7,14 @@ if not exist "%~dp0Scam With Your Friends.exe" (
     pause >nul
     exit /b 1
 )
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0CustomAI\package\prerequisites.ps1" -PackageDir "%~dp0CustomAI\package"
+set "prerequisiteResult=%errorlevel%"
+if not "%prerequisiteResult%"=="0" (
+    echo Prerequisites are not ready. The mod was not installed. Read the message above.
+    echo Press any key to continue . . .
+    pause >nul
+    exit /b %prerequisiteResult%
+)
 echo If you disable Kolkata, press F8 to configure and enable your AI provider.
 echo Kolkata accounts, credits and community cloud features will be unavailable. Steam and networking are unaffected.
 choice /C YN /N /M "Disable the Kolkata API? [Y]es / [N]o: "
@@ -22,7 +30,7 @@ if not defined disableKolkata (
 )
 "%~dp0CustomAI\package\installer\SWYF.CustomAI.Installer.exe" install "%~dp0." "%~dp0CustomAI\package" "--disable-kolkata=%disableKolkata%"
 set "installResult=%errorlevel%"
-if not "%installResult%"=="0" echo Installation failed. Read the error above. Check that ASP.NET Core Runtime 10 x64 is installed.
+if not "%installResult%"=="0" echo Installation failed. Read the error above.
 echo Press any key to continue . . .
 pause >nul
 exit /b %installResult%

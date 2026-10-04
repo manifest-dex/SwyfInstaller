@@ -244,6 +244,11 @@ using (var archive = System.IO.Compression.ZipFile.OpenRead(releaseZip))
 {
     Check(archive.Entries.Any(e => e.FullName == "Install Custom AI.cmd") && archive.Entries.All(e =>
         !e.FullName.EndsWith("settings.json") && !e.FullName.Contains("/backup/") && !e.FullName.EndsWith("Assembly-CSharp.dll") && !e.FullName.EndsWith("ScriptsAssDef.dll")), "release ZIP has root installer and no game files or secrets");
+    Check(archive.GetEntry("CustomAI/package/prerequisites.ps1") is not null, "release ZIP includes the Windows PowerShell prerequisite bootstrap");
+    using var installerText = new StreamReader(archive.GetEntry("Install Custom AI.cmd")!.Open());
+    var installScript = installerText.ReadToEnd();
+    Check(installScript.Contains("choice /C YN /N /M \"Disable the Kolkata API? [Y]es / [N]o: \"") &&
+        installScript.Contains("Selection canceled. The mod was not installed."), "packaged installer uses English instructions and Y/N choices");
 }
 System.IO.Compression.ZipFile.ExtractToDirectory(releaseZip, game, true);
 File.WriteAllText(Path.Combine(game, "Scam With Your Friends.exe"), "test presence marker; never executed");
@@ -258,6 +263,17 @@ async Task<int> RunWrapper(string name, string input = "")
     if (wrapper.ExitCode != 0) Console.WriteLine(await stdout + await errors);
     return wrapper.ExitCode;
 }
+var packagedPanelConfig = Path.Combine(game, "CustomAI/package/panel/SWYF.CustomAI.Panel.runtimeconfig.json");
+var beforeFailedSetup = Installer.Hash(Path.Combine(managed, "Assembly-CSharp.dll"));
+File.Move(packagedPanelConfig, packagedPanelConfig + ".test-backup");
+try
+{
+    Check(await RunWrapper("Install Custom AI.cmd", "Y") != 0 &&
+        Installer.Hash(Path.Combine(managed, "Assembly-CSharp.dll")) == beforeFailedSetup &&
+        File.ReadAllText(gameConfig) == savedBackendConfig,
+        "failed prerequisite check stops the CMD wrapper before patching or changing Kolkata settings");
+}
+finally { File.Move(packagedPanelConfig + ".test-backup", packagedPanelConfig); }
 Check(await RunWrapper("Install Custom AI.cmd", "Y") == 0 && BackendConfig.Read(gameConfig), "double-click installer Yes handles spaces and ampersands from another working directory");
 Check(await RunWrapper("Install Custom AI.cmd", "N") == 0 && !BackendConfig.Read(gameConfig), "double-click installer No saves Kolkata enabled");
 Check(await RunWrapper("Uninstall Custom AI.cmd") == 0, "double-click uninstall restores extracted installation");
