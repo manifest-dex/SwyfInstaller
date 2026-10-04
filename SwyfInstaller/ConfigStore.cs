@@ -21,8 +21,10 @@ internal static class Store
 
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
-    public static string AppDir { get; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SwyfInstaller");
+    public static string AppDirOverride = null;
+
+    public static string AppDir =>
+        AppDirOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SwyfInstaller");
 
     public static string ConfigPath => Path.Combine(AppDir, "config.json");
     public static string ManifestPath => Path.Combine(AppDir, "manifest.json");

@@ -20,6 +20,8 @@ internal static class SelfTest
         }
 
         string root = Path.Combine(Path.GetTempPath(), "SwyfInstallerSelfTest_" + Guid.NewGuid().ToString("N"));
+        string savedOverride = Store.AppDirOverride;
+        Store.AppDirOverride = Path.Combine(root, "appdata");
         try
         {
             string gameDir = Path.Combine(root, "game");
@@ -74,6 +76,7 @@ internal static class SelfTest
         }
         finally
         {
+            Store.AppDirOverride = savedOverride;
             try { Directory.Delete(root, recursive: true); } catch { }
         }
 

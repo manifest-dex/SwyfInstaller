@@ -136,13 +136,27 @@ internal static class Ops
         }
     }
 
-    public static int RunPackageScript(string gameDir, string cmdFile)
+    public static int RunPackageScript(string gameDir, string cmdFile, bool visibleWindow)
     {
         string full = Path.Combine(gameDir, cmdFile);
         if (!File.Exists(full))
         {
             Console.WriteLine("Script not found: " + cmdFile);
             return 1;
+        }
+        if (visibleWindow)
+        {
+            Console.WriteLine("Running " + cmdFile + " in its own window - answer its prompts there.");
+            var wpsi = new ProcessStartInfo("cmd.exe", "/c \"" + cmdFile + "\"")
+            {
+                WorkingDirectory = gameDir,
+                UseShellExecute = true,
+            };
+            using var wp = Process.Start(wpsi);
+            if (wp == null) return 1;
+            wp.WaitForExit();
+            Console.WriteLine("Exit code: " + wp.ExitCode);
+            return wp.ExitCode;
         }
         Console.WriteLine("Running " + cmdFile + " ...");
         var psi = new ProcessStartInfo("cmd.exe", "/c \"" + cmdFile + "\"")
@@ -165,7 +179,7 @@ internal static class Ops
         return ans == "y" || ans == "yes";
     }
 
-    public static async Task<int> InstallFlowAsync(Store.AppConfig cfg, string workDir, bool autoYes, bool applyPatch, CancellationToken ct)
+    public static async Task<int> InstallFlowAsync(Store.AppConfig cfg, string workDir, bool autoYes, bool applyPatch, bool visibleWindow, CancellationToken ct)
     {
         WarnIfGameRunning();
         Console.WriteLine("Checking latest release of " + cfg.Repo + " ...");
@@ -181,13 +195,13 @@ internal static class Ops
         if (applyPatch)
         {
             if (!Confirm("Run Install Custom AI.cmd now to apply the patch?", autoYes)) return 0;
-            return RunPackageScript(cfg.GameDir, "Install Custom AI.cmd");
+            return RunPackageScript(cfg.GameDir, "Install Custom AI.cmd", visibleWindow);
         }
         Console.WriteLine("Skipped patch step (--no-apply). Run Install Custom AI.cmd yourself before playing.");
         return 0;
     }
 
-    public static async Task<int> UpdateFlowAsync(Store.AppConfig cfg, string workDir, bool autoYes, bool applyPatch, bool force, CancellationToken ct)
+    public static async Task<int> UpdateFlowAsync(Store.AppConfig cfg, string workDir, bool autoYes, bool applyPatch, bool force, bool visibleWindow, CancellationToken ct)
     {
         WarnIfGameRunning();
         Console.WriteLine("Checking latest release of " + cfg.Repo + " ...");
@@ -211,7 +225,7 @@ internal static class Ops
         if (applyPatch)
         {
             if (!Confirm("Run Install Custom AI.cmd now to re-apply the patch?", autoYes)) return 0;
-            return RunPackageScript(cfg.GameDir, "Install Custom AI.cmd");
+            return RunPackageScript(cfg.GameDir, "Install Custom AI.cmd", visibleWindow);
         }
         Console.WriteLine("Skipped patch step (--no-apply). Run Install Custom AI.cmd yourself before playing.");
         return 0;
@@ -227,10 +241,10 @@ internal static class Ops
         return VerifyAgainstManifest(cfg.GameDir, Store.LoadManifest());
     }
 
-    public static int UninstallFlow(Store.AppConfig cfg, bool autoYes, bool full)
+    public static int UninstallFlow(Store.AppConfig cfg, bool autoYes, bool full, bool visibleWindow)
     {
         WarnIfGameRunning();
-        int code = RunPackageScript(cfg.GameDir, "Uninstall Custom AI.cmd");
+        int code = RunPackageScript(cfg.GameDir, "Uninstall Custom AI.cmd", visibleWindow);
         if (code != 0 && !Confirm("Uninstaller exited with code " + code + ". Remove leftover package files anyway?", autoYes)) return code;
         if (full)
         {

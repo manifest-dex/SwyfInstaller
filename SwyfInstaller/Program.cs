@@ -28,6 +28,7 @@ internal static class Program
           --no-apply       skip running Install Custom AI.cmd after extract
           --force          reinstall even when already on the latest tag
           --full           uninstall: also delete settings, session and backups
+          --window         run package scripts in their own window (for GUIs)
         """;
 
     public static async Task<int> Main(string[] args)
@@ -50,6 +51,7 @@ internal static class Program
         bool applyPatch = !opts.ContainsKey("no-apply");
         bool force = opts.ContainsKey("force");
         bool full = opts.ContainsKey("full");
+        bool window = opts.ContainsKey("window");
         opts.TryGetValue("gamedir", out string cliDir);
 
         using var cts = new CancellationTokenSource();
@@ -64,11 +66,11 @@ internal static class Program
                 case "install":
                     GameDir.Resolve(cfg, cliDir ?? "", interactive: false);
                     Store.SaveConfig(cfg);
-                    return await Ops.InstallFlowAsync(cfg, workDir, autoYes, applyPatch, cts.Token);
+                    return await Ops.InstallFlowAsync(cfg, workDir, autoYes, applyPatch, window, cts.Token);
                 case "update":
                     GameDir.Resolve(cfg, cliDir ?? "", interactive: false);
                     Store.SaveConfig(cfg);
-                    return await Ops.UpdateFlowAsync(cfg, workDir, autoYes, applyPatch, force, cts.Token);
+                    return await Ops.UpdateFlowAsync(cfg, workDir, autoYes, applyPatch, force, window, cts.Token);
                 case "verify":
                     GameDir.Resolve(cfg, cliDir ?? "", interactive: false);
                     Store.SaveConfig(cfg);
@@ -76,7 +78,7 @@ internal static class Program
                 case "uninstall":
                     GameDir.Resolve(cfg, cliDir ?? "", interactive: false);
                     Store.SaveConfig(cfg);
-                    return Ops.UninstallFlow(cfg, autoYes, full);
+                    return Ops.UninstallFlow(cfg, autoYes, full, window);
                 case "latest":
                     return await LatestAsync(cfg.Repo, cts.Token);
                 case "detect":
@@ -148,12 +150,12 @@ internal static class Program
                     case "1":
                         GameDir.Resolve(cfg, "", interactive: true);
                         Store.SaveConfig(cfg);
-                        await Ops.InstallFlowAsync(cfg, workDir, autoYes: false, applyPatch: true, ct);
+                        await Ops.InstallFlowAsync(cfg, workDir, autoYes: false, applyPatch: true, visibleWindow: false, ct);
                         break;
                     case "2":
                         GameDir.Resolve(cfg, "", interactive: true);
                         Store.SaveConfig(cfg);
-                        await Ops.UpdateFlowAsync(cfg, workDir, autoYes: false, applyPatch: true, force: false, ct);
+                        await Ops.UpdateFlowAsync(cfg, workDir, autoYes: false, applyPatch: true, force: false, visibleWindow: false, ct);
                         break;
                     case "3":
                         GameDir.Resolve(cfg, "", interactive: true);
@@ -163,7 +165,7 @@ internal static class Program
                     case "4":
                         GameDir.Resolve(cfg, "", interactive: true);
                         Store.SaveConfig(cfg);
-                        Ops.UninstallFlow(cfg, autoYes: false, full: false);
+                        Ops.UninstallFlow(cfg, autoYes: false, full: false, visibleWindow: false);
                         break;
                     case "5":
                         cfg.GameDir = "";

@@ -21,6 +21,7 @@ internal sealed class MainForm : Form
     };
     private readonly CheckBox _patchBox = new() { Text = "Run patch step", Checked = true, AutoSize = true };
     private readonly CheckBox _fullBox = new() { Text = "Full uninstall", AutoSize = true };
+    private readonly CheckBox _forceBox = new() { Text = "Force reinstall", AutoSize = true };
     private readonly ToolStripStatusLabel _status = new() { Text = "Ready" };
     private readonly FlowLayoutPanel _buttons = new() { Dock = DockStyle.Fill, AutoSize = true };
     private readonly Button _updateAppButton;
@@ -67,6 +68,7 @@ internal sealed class MainForm : Form
         _buttons.Controls.Add(_updateAppButton);
         _buttons.Controls.Add(_patchBox);
         _buttons.Controls.Add(_fullBox);
+        _buttons.Controls.Add(_forceBox);
         _buttons.Padding = new Padding(10, 6, 10, 0);
         mid.Controls.Add(_buttons);
 
@@ -118,9 +120,10 @@ internal sealed class MainForm : Form
 
     private string BaseArgs(string command)
     {
-        string args = command + " --yes";
+        string args = command + " --yes --window";
         if (_gameBox.Text.Trim() != "") args += " --gamedir \"" + _gameBox.Text.Trim() + "\"";
         if (_repoBox.Text.Trim() != "") args += " --repo " + _repoBox.Text.Trim();
+        if ((command == "install" || command == "update") && _forceBox.Checked) args += " --force";
         return args;
     }
 
