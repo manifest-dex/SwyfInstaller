@@ -10,14 +10,10 @@ internal sealed record SelfUpdateInfo(
     string Version,
     string Name,
     string Notes,
-    string GuiName,
-    string GuiUrl,
-    long GuiSize,
-    string GuiDigest,
-    string BackName,
-    string BackUrl,
-    long BackSize,
-    string BackDigest);
+    string SetupName,
+    string SetupUrl,
+    long SetupSize,
+    string SetupDigest);
 
 internal sealed class SelfUpdater
 {
@@ -73,15 +69,15 @@ internal sealed class SelfUpdater
         if (latest <= CurrentVersion) return null;
         if (!root.TryGetProperty("assets", out var assets)) return null;
 
-        string guiName = "", guiUrl = "", guiDigest = "";
-        long guiSize = 0;
-        string backName = "", backUrl = "", backDigest = "";
-        long backSize = 0;
+        string setupName = "", setupUrl = "", setupDigest = "";
+        long setupSize = 0;
         foreach (var a in assets.EnumerateArray())
         {
             string name = a.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
             string url = a.TryGetProperty("browser_download_url", out var u) ? u.GetString() ?? "" : "";
-            if (url == "" || !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
+            if (url == "") continue;
+            if (!name.StartsWith("SwyfInstaller-Setup-", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!name.EndsWith("-win-x64.exe", StringComparison.OrdinalIgnoreCase)) continue;
             long size = a.TryGetProperty("size", out var s) && s.TryGetInt64(out var v) ? v : 0;
             string digest = "";
             if (a.TryGetProperty("digest", out var d))
@@ -90,27 +86,17 @@ internal sealed class SelfUpdater
                 if (raw.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
                     digest = raw.Substring(7).ToLowerInvariant();
             }
-            if (name.StartsWith("SwyfInstallerGui-", StringComparison.OrdinalIgnoreCase))
-            {
-                guiName = name;
-                guiUrl = url;
-                guiSize = size;
-                guiDigest = digest;
-            }
-            else if (name.StartsWith("SwyfInstaller-", StringComparison.OrdinalIgnoreCase))
-            {
-                backName = name;
-                backUrl = url;
-                backSize = size;
-                backDigest = digest;
-            }
+            setupName = name;
+            setupUrl = url;
+            setupSize = size;
+            setupDigest = digest;
         }
-        if (guiUrl == "" || backUrl == "") return null;
+        if (setupUrl == "") return null;
 
         string relName = root.TryGetProperty("name", out var rn) ? rn.GetString() ?? "" : "";
         string notes = root.TryGetProperty("body", out var rb) ? rb.GetString() ?? "" : "";
         return new SelfUpdateInfo(latest.ToString(), relName, notes,
-            guiName, guiUrl, guiSize, guiDigest, backName, backUrl, backSize, backDigest);
+            setupName, setupUrl, setupSize, setupDigest);
     }
 
     private static async Task DownloadFileAsync(string url, string dest, long size, double fromFrac, double toFrac,
@@ -174,31 +160,21 @@ internal sealed class SelfUpdater
         Directory.CreateDirectory(dir);
         foreach (string f in Directory.GetFiles(dir)) File.Delete(f);
 
-        string guiPath = Path.Combine(dir, update.GuiName);
-        string backPath = Path.Combine(dir, update.BackName);
-        await DownloadFileAsync(update.GuiUrl, guiPath, update.GuiSize, 0.0, 0.45, progress, ct);
-        await DownloadFileAsync(update.BackUrl, backPath, update.BackSize, 0.45, 0.9, progress, ct);
+        string setupPath = Path.Combine(dir, update.SetupName);
+        await DownloadFileAsync(update.SetupUrl, setupPath, update.SetupSize, 0.0, 0.95, progress, ct);
 
-        string guiSum = ParseChecksum(await DownloadTextAsync(update.GuiUrl + ".sha256", ct));
-        string backSum = ParseChecksum(await DownloadTextAsync(update.BackUrl + ".sha256", ct));
-        if (!string.Equals(Sha256File(guiPath), guiSum, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Download check failed for " + update.GuiName + ". Deleted nothing.");
-        if (!string.Equals(Sha256File(backPath), backSum, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Download check failed for " + update.BackName + ". Deleted nothing.");
-        if (update.GuiDigest != "" && !string.Equals(Sha256File(guiPath), update.GuiDigest, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Download does not match the release checksum for " + update.GuiName + ".");
-        if (update.BackDigest != "" && !string.Equals(Sha256File(backPath), update.BackDigest, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Download does not match the release checksum for " + update.BackName + ".");
+        string setupSum = ParseChecksum(await DownloadTextAsync(update.SetupUrl + ".sha256", ct));
+        if (!string.Equals(Sha256File(setupPath), setupSum, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Download check failed for " + update.SetupName + ". Deleted nothing.");
+        if (update.SetupDigest != "" && !string.Equals(Sha256File(setupPath), update.SetupDigest, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Download does not match the release checksum for " + update.SetupName + ".");
         progress?.Report(1.0);
         return dir;
     }
 
-    public static void InstallAndRestart(string dir, string guiName, string backName)
+    public static void InstallAndRestart(string dir, string setupName)
     {
         string appDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
-        string installedGui = Path.GetFileName(Environment.ProcessPath ?? "");
-        if (installedGui == "") installedGui = "SwyfInstallerGui.exe";
-        const string installedBack = "SwyfInstaller.exe";
         int pid = Environment.ProcessId;
         string script = Path.Combine(dir, "update.cmd");
 
@@ -208,9 +184,8 @@ internal sealed class SelfUpdater
             $"set \"APPDIR={appDir}\"\r\n" +
             $":wait\r\ntasklist /FI \"PID eq {pid}\" 2>NUL | find \"{pid}\" >NUL\r\n" +
             "if %errorlevel%==0 ( timeout /t 1 /nobreak >NUL & goto wait )\r\n" +
-            $"copy /y \"%UPD%\\{guiName}\" \"%APPDIR%\\{installedGui}\" >NUL\r\n" +
-            $"copy /y \"%UPD%\\{backName}\" \"%APPDIR%\\{installedBack}\" >NUL\r\n" +
-            $"start \"\" \"%APPDIR%\\{installedGui}\"\r\n" +
+            $"\"%UPD%\\{setupName}\" /VERYSILENT /NORESTART /SUPPRESSMSGBOXES\r\n" +
+            "start \"\" \"%APPDIR%\\SwyfInstallerGui.exe\"\r\n" +
             "rd /s /q \"%UPD%\"\r\n" +
             "(goto) 2>nul & del \"%~f0\"\r\n";
         File.WriteAllText(script, bat);

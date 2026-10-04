@@ -32,9 +32,22 @@ dotnet publish SwyfInstaller.Gui/SwyfInstaller.Gui.csproj -c Release -r win-x64 
 Copy-Item SwyfInstaller/publish/SwyfInstaller.exe SwyfInstaller.Gui/publish/
 ```
 
+Setup installer (per-user, Start Menu + Programs list, no admin) with
+[Inno Setup 6](https://jrsoftware.org/isinfo.php):
+
+```powershell
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.0 installer.iss
+```
+
+Releases ship only `SwyfInstaller-Setup-v*-win-x64.exe` (+ `.sha256`),
+which the in-app updater downloads and runs silently. `release.ps1 -Tag`
+automates build, test, setup, tag and publish.
+
 ## Layout
 
 ```
 SwyfInstaller/        console tool (download / verify / install / update / uninstall)
-SwyfInstaller.Gui/    WinForms front-end driving the console tool
+SwyfInstaller.Gui/    WinForms front-end with self-updater
+installer.iss         Inno Setup script (per-user setup exe)
+release.ps1           build, test, setup, tag and publish a release
 ```

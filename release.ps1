@@ -34,21 +34,21 @@ Exec "dotnet publish `"$root\SwyfInstaller\SwyfInstaller.csproj`" -c Release -r 
 Exec "dotnet publish `"$root\SwyfInstaller.Gui\SwyfInstaller.Gui.csproj`" -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o `"$root\SwyfInstaller.Gui\publish`" --nologo -v q"
 Copy-Item "$root\SwyfInstaller\publish\SwyfInstaller.exe" "$root\SwyfInstaller.Gui\publish\" -Force
 
-Step "Packaging release assets"
-$artifacts = Join-Path $root "artifacts"
-if (Test-Path $artifacts) { Remove-Item $artifacts -Recurse -Force }
-New-Item -ItemType Directory -Force $artifacts | Out-Null
-$guiAsset = "SwyfInstallerGui-v$version-win-x64.exe"
-$conAsset = "SwyfInstaller-v$version-win-x64.exe"
-Copy-Item "$root\SwyfInstaller.Gui\publish\SwyfInstallerGui.exe" (Join-Path $artifacts $guiAsset) -Force
-Copy-Item "$root\SwyfInstaller\publish\SwyfInstaller.exe" (Join-Path $artifacts $conAsset) -Force
-$assets = @($guiAsset, $conAsset)
-foreach ($name in $assets) {
-    $path = Join-Path $artifacts $name
-    $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
-    "$hash  $name" | Set-Content "$path.sha256" -NoNewline
-    Write-Host "${name}: $hash"
-}
+Step "Building setup"
+$iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+if (!(Test-Path $iscc)) { throw "Inno Setup 6 not found at $iscc. Install it first: https://jrsoftware.org/isinfo.php" }
+Push-Location $root
+& $iscc "/DAppVersion=$version" "installer.iss"
+if ($LASTEXITCODE -ne 0) { Pop-Location; throw "Inno Setup failed." }
+Pop-Location
+$setupName = "SwyfInstaller-Setup-v$version-win-x64.exe"
+$setupPath = Join-Path $root "artifacts\$setupName"
+if (!(Test-Path $setupPath)) { throw "Setup output not found: $setupPath" }
+$hash = (Get-FileHash $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
+"$hash  $setupName" | Set-Content "$setupPath.sha256" -NoNewline
+Write-Host "${setupName}: $hash"
+$assets = @($setupName)
+$artifacts = Split-Path $setupPath -Parent
 
 if ($BuildOnly) { Write-Host ""; Write-Host "Build-only done: $artifacts"; return }
 
@@ -79,7 +79,7 @@ Console installer + basic WinForms UI for SWYF Custom AI.
 - The app now updates itself: it checks this repo on startup and installs
   new releases automatically (checksum-verified).
 
-Run SwyfInstallerGui.exe (needs SwyfInstaller.exe next to it), or use the console tool directly. See README for commands.
+Run the setup to install (Start Menu + Programs list, no admin needed).
 "@
 $releaseBody = @{
     tag_name   = $Tag
@@ -91,7 +91,7 @@ $releaseBody = @{
 $release = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/manifest-dex/SwyfInstaller/releases" `
     -Headers $headers -ContentType "application/json" -Body $releaseBody -TimeoutSec 60
 $uploadBase = ($release.upload_url -split '\{')[0]
-foreach ($name in $assets + @("$guiAsset.sha256", "$conAsset.sha256")) {
+foreach ($name in $assets + @("$setupName.sha256")) {
     $path = Join-Path $artifacts $name
     Write-Host "Uploading $name ..."
     $uri = $uploadBase + "?name=" + [uri]::EscapeDataString($name)

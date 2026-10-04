@@ -296,7 +296,7 @@ internal sealed class MainForm : Form
             });
             string dir = await updater.DownloadAsync(info, progress, CancellationToken.None);
             Log("Download verified. Restarting to apply…");
-            SelfUpdater.InstallAndRestart(dir, info.GuiName, info.BackName);
+            SelfUpdater.InstallAndRestart(dir, info.SetupName);
             Application.Exit();
         }
         catch (Exception ex)
