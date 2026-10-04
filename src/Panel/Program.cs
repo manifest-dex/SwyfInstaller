@@ -15,13 +15,14 @@ namespace Swyf.CustomAI;
 
 public sealed record Startup(string InternalToken, string BrowserToken, string ConfigPath, int ParentId);
 public sealed record Settings(bool Enabled = false, string BaseUrl = "", string Model = "", string ApiKey = "",
-    double? Temperature = null, double? TopP = null, int? MaxTokens = null, string OutputMode = "schema");
+    double? Temperature = null, double? TopP = null, int? MaxTokens = null, string OutputMode = "schema", bool UseManifestDeX = false);
 public sealed record SettingsInput(bool Enabled, string BaseUrl, string Model, string? ApiKey = null,
-    bool ClearApiKey = false, double? Temperature = null, double? TopP = null, int? MaxTokens = null, string OutputMode = "schema");
-public sealed class ApiFailure(int status, string code, string message) : Exception(message)
+    bool ClearApiKey = false, double? Temperature = null, double? TopP = null, int? MaxTokens = null, string OutputMode = "schema", bool UseManifestDeX = false);
+public sealed class ApiFailure(int status, string code, string message, int? retryAfter = null) : Exception(message)
 {
     public int Status { get; } = status;
     public string Code { get; } = code;
+    public int? RetryAfter { get; } = retryAfter;
 }
 
 public sealed class SettingsStore(string path)
@@ -51,9 +52,11 @@ public sealed class SettingsStore(string path)
     public Settings Merge(SettingsInput input)
     {
         var old = Read();
-        var settings = new Settings(input.Enabled, (input.BaseUrl ?? "").Trim().TrimEnd('/'),
-            (input.Model ?? "").Trim(), input.ClearApiKey ? "" : input.ApiKey ?? old.ApiKey,
-            input.Temperature, input.TopP, input.MaxTokens, input.OutputMode);
+        var settings = input.UseManifestDeX
+            ? old with { Enabled = input.Enabled, UseManifestDeX = true }
+            : new Settings(input.Enabled, (input.BaseUrl ?? "").Trim().TrimEnd('/'),
+                (input.Model ?? "").Trim(), input.ClearApiKey ? "" : input.ApiKey ?? old.ApiKey,
+                input.Temperature, input.TopP, input.MaxTokens, input.OutputMode);
         Validate(settings, settings.Enabled);
         return settings;
     }
@@ -73,6 +76,7 @@ public sealed class SettingsStore(string path)
 
     public static void Validate(Settings s, bool requireConnection)
     {
+        if (s.UseManifestDeX) return; // Fixed HTTPS endpoint and scoped ticket are owned by ManifestDeXClient.
         if (requireConnection || !string.IsNullOrEmpty(s.BaseUrl))
         {
             if (!Uri.TryCreate(s.BaseUrl, UriKind.Absolute, out var uri) ||
@@ -91,7 +95,7 @@ public sealed class SettingsStore(string path)
     }
 
     public object Public() { var s = Read(); return new { s.Enabled, s.BaseUrl, s.Model, hasApiKey = s.ApiKey.Length > 0,
-        s.Temperature, s.TopP, s.MaxTokens, s.OutputMode, loadError = LoadError }; }
+        s.Temperature, s.TopP, s.MaxTokens, s.OutputMode, s.UseManifestDeX, loadError = LoadError }; }
 }
 
 public sealed class Provider : IDisposable
@@ -182,12 +186,19 @@ public sealed class Provider : IDisposable
             var payload = body.ToJsonString();
             if (Encoding.UTF8.GetByteCount(payload) > MaxRequest) throw new ApiFailure(413, "size", "The request is too large.");
             using var request = new HttpRequestMessage(HttpMethod.Post, settings.BaseUrl.TrimEnd('/') + "/chat/completions");
+            if (settings.BaseUrl == ManifestDeXClient.ServiceUrl + "/v1") {request.Headers.Add("X-CustomAI-Background", isBackground ? "1" : "0");request.Headers.Add("Idempotency-Key",Guid.NewGuid().ToString("N"));}
             if (settings.ApiKey.Length > 0) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
             request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
             if (!response.IsSuccessStatusCode)
             {
                 int code = (int)response.StatusCode;
+                if(settings.BaseUrl==ManifestDeXClient.ServiceUrl+"/v1"){
+                    var hostedBytes=await ReadBounded(await response.Content.ReadAsStreamAsync(token),32768,token);
+                    string hostedMessage="ManifestDeX AI is temporarily unavailable.";
+                    try{hostedMessage=JsonNode.Parse(hostedBytes)?["message"]?.GetValue<string>()??hostedMessage;}catch(JsonException){}
+                    throw new ApiFailure(code,"manifestdex",hostedMessage);
+                }
                 if (code == 400 && attempt < 2)
                 {
                     // Only react to an explicit unsupported-parameter error, never an arbitrary provider failure.
@@ -258,6 +269,7 @@ public static class Program
         var app = builder.Build();
         var store = new SettingsStore(startup.ConfigPath); store.Load();
         using var provider = new Provider();
+        using var manifest = new ManifestDeXClient(startup.ConfigPath, provider);
         int port = 0;
         app.Use(async (ctx, next) =>
         {
@@ -277,7 +289,7 @@ public static class Program
                 { ctx.Response.StatusCode = 401; return; }
             }
             try { await next(); }
-            catch (ApiFailure e) { ctx.Response.StatusCode = e.Status; await ctx.Response.WriteAsJsonAsync(new { error = e.Code, message = e.Message }); }
+            catch (ApiFailure e) { ctx.Response.StatusCode = e.Status; if(e.RetryAfter is int retry)ctx.Response.Headers.RetryAfter=retry.ToString(); await ctx.Response.WriteAsJsonAsync(new { error = e.Code, message = e.Message, retryAfter=e.RetryAfter }); }
             catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested) { }
             catch (Exception e) when (e is JsonException or BadHttpRequestException)
             { ctx.Response.StatusCode = 400; await ctx.Response.WriteAsJsonAsync(new { error = "json", message = "Invalid JSON request." }); }
@@ -289,7 +301,7 @@ public static class Program
             var resource = Assembly.GetExecutingAssembly().GetManifestResourceNames().Single(n => n.EndsWith("index.html"));
             using var reader = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream(resource)!);
             var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
-            ctx.Response.Headers.ContentSecurityPolicy = $"default-src 'none'; style-src 'nonce-{nonce}'; script-src 'nonce-{nonce}'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
+            ctx.Response.Headers.ContentSecurityPolicy = $"default-src 'none'; style-src 'nonce-{nonce}'; script-src 'nonce-{nonce}'; img-src https://api.manifestdex.com; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
             ctx.Response.ContentType = "text/html; charset=utf-8";
             await ctx.Response.WriteAsync((await reader.ReadToEndAsync()).Replace("__NONCE__", nonce));
         });
@@ -297,16 +309,23 @@ public static class Program
         app.MapPut("/api/config", async (HttpContext ctx) =>
         {
             var input = await ctx.Request.ReadFromJsonAsync<SettingsInput>() ?? throw new JsonException();
+            if (input.UseManifestDeX && input.Enabled) await manifest.RequireAvailable(ctx.RequestAborted);
             store.Save(store.Merge(input));
             return Results.Json(store.Public());
         });
+        app.MapGet("/api/manifestdex/status", async (HttpContext ctx) => await ctx.Response.WriteAsJsonAsync(await manifest.Status(ctx.RequestAborted)));
+        app.MapPost("/api/manifestdex/connect", async (HttpContext ctx) => await ctx.Response.WriteAsJsonAsync(await manifest.Connect(ctx.RequestAborted)));
+        app.MapPost("/api/manifestdex/poll", async (HttpContext ctx) => await ctx.Response.WriteAsJsonAsync(await manifest.Poll(ctx.RequestAborted)));
+        app.MapGet("/api/manifestdex/account",async(HttpContext ctx)=>await ctx.Response.WriteAsJsonAsync(await manifest.Account(ctx.RequestAborted,ctx.Request.Query["refresh"]=="true")));
+        app.MapPost("/api/manifestdex/disconnect", async(HttpContext ctx) => { await manifest.DisconnectRemote(ctx.RequestAborted); return Results.Json(new { ok = true }); });
         app.MapGet("/api/status", () => Results.Json(new { ready = true, completed = Interlocked.Read(ref provider.Completed),
             lastError = provider.LastError, loadError = store.LoadError, deadlineSeconds = 15 }));
-        app.MapGet("/internal/status", () => Results.Json(provider.ConnectionStatus(store.Read(), store.LoadError)));
+        app.MapGet("/internal/status", () => Results.Json(provider.ConnectionStatus(manifest.Effective(store.Read()), store.LoadError)));
         app.MapPost("/api/test", async (HttpContext ctx) =>
         {
             var input = await ctx.Request.ReadFromJsonAsync<SettingsInput>() ?? throw new JsonException();
             var settings = store.Merge(input);
+            if (settings.UseManifestDeX) { await manifest.RequireAvailable(ctx.RequestAborted); settings = manifest.Effective(settings); }
             var body = JsonNode.Parse("""
                 {"messages":[{"role":"user","content":"Reply in English with a short greeting. Set trust_percent to 50 and emotion to NEUTRAL."}],"max_tokens":128,"response_format":{"type":"json_schema","json_schema":{"name":"caller_turn","strict":true,"schema":{"type":"object","properties":{"dialogue":{"type":"string"},"trust_percent":{"type":"integer","minimum":0,"maximum":100},"emotion":{"type":"string","enum":["TRUSTING","SUSPICIOUS","ANGRY","NEUTRAL"]}},"required":["dialogue","trust_percent","emotion"],"additionalProperties":false}}}}
                 """)!.AsObject();
@@ -332,6 +351,7 @@ public static class Program
             var settings = store.Read();
             if (!settings.Enabled) throw new ApiFailure(409, "disabled", "The custom provider is disabled; the next game request will use the original service.");
             if (store.LoadError != null) throw new ApiFailure(503, "config", store.LoadError);
+            if (settings.UseManifestDeX) settings = manifest.Effective(settings);
             var bytes = await Provider.ReadBounded(ctx.Request.Body, Provider.MaxRequest, ctx.RequestAborted);
             var body = JsonNode.Parse(bytes) as JsonObject ?? throw new JsonException();
             return Results.Json(await provider.Complete(body, settings, ctx.Request.Headers["X-CustomAI-Background"] == "1", ctx.RequestAborted));

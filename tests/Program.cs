@@ -14,6 +14,21 @@ var output = Path.Combine(root, "artifacts", "tests", DateTime.UtcNow.ToString("
 Directory.CreateDirectory(output);
 int passed = 0;
 void Check(bool condition, string name) { if (!condition) throw new Exception("FAIL: " + name); Console.WriteLine("PASS: " + name); passed++; }
+var backendConfig = Path.Combine(output, "customai.toml");
+Check(!BackendConfig.Read(backendConfig), "missing Kolkata configuration keeps the backend enabled");
+foreach (var text in new[] { "", "# installer setting\n", "disable_kolkata_api = false\n" })
+{
+    File.WriteAllText(backendConfig, text);
+    Check(!BackendConfig.Read(backendConfig), "absent or false Kolkata setting keeps the backend enabled");
+}
+File.WriteAllText(backendConfig, "  # startup configuration\r\n  disable_kolkata_api  =  true  # disabled\r\n", new UTF8Encoding(true));
+Check(BackendConfig.Read(backendConfig), "Kolkata configuration supports BOM, comments and whitespace");
+foreach (var text in new[] { "disable_kolkata_api = maybe", "disable_kolkata_api = True", "disable_kolkata_api = \"true\"", "disable_kolkata_api = true\ndisable_kolkata_api = false", "[backend]\ndisable_kolkata_api = true", "unexpected = true" })
+{
+    File.WriteAllText(backendConfig, text);
+    try { BackendConfig.Read(backendConfig); throw new Exception("Invalid Kolkata configuration was accepted: " + text); }
+    catch (FormatException) { Check(true, "invalid or ambiguous Kolkata configuration is rejected"); }
+}
 async Task Failure(Func<Task> task, string code)
 { try { await task(); throw new Exception("Expected " + code); } catch (ApiFailure e) { Check(e.Code == code, code); } }
 var builder = WebApplication.CreateBuilder(); builder.Logging.ClearProviders();
@@ -96,11 +111,20 @@ var reloaded = new SettingsStore(config); reloaded.Load(); Check(reloaded.Read()
 Check(!JsonSerializer.Serialize(reloaded.Public()).Contains("saved-secret"), "config GET does not reveal key");
 Check(reloaded.Merge(new(true, url, "x")).ApiKey == "saved-secret", "blank key preserves secret");
 Check(reloaded.Merge(new(true, url, "x", ClearApiKey: true)).ApiKey == "", "explicit clear removes key");
+var hosted = reloaded.Merge(new(true, "https://untrusted.invalid", "ignored", "ignored-key", Temperature: 1.8, UseManifestDeX: true));
+Check(hosted.UseManifestDeX && hosted.BaseUrl == settings.BaseUrl && hosted.ApiKey == "saved-secret" && hosted.Temperature == settings.Temperature, "hosted selection preserves private settings and ignores blocked edits");
+SettingsStore.Validate(new Settings(Enabled: true, UseManifestDeX: true), true);
+using (var hostedClient = new ManifestDeXClient(config, provider))
+{
+    var effective = hostedClient.Effective(hosted);
+    Check(effective.BaseUrl == ManifestDeXClient.ServiceUrl + "/v1" && effective.Model == "ManifestDeX AI" && effective.ApiKey != "saved-secret", "hosted requests use only fixed service endpoint and scoped credentials");
+    Check(hostedClient.Effective(settings) == settings, "private provider routing unchanged");
+}
 File.WriteAllText(config, "bad-json"); reloaded.Load(); Check(reloaded.Read().Enabled && reloaded.LoadError != null, "corrupt config fails closed");
 
 // Exercise the actual companion process, security middleware, endpoints and EOF lifecycle.
 string browserToken = new('b', 48), internalToken = new('i', 48);
-var panelDll = Path.Combine(root, "src", "Panel", "bin", "Release", "net10.0", "SWYF.CustomAI.Panel.dll");
+var panelDll = Path.Combine(AppContext.BaseDirectory, "SWYF.CustomAI.Panel.dll");
 using var panel = new Process { StartInfo = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true } };
 panel.StartInfo.ArgumentList.Add(panelDll); panel.Start(); var stderr = panel.StandardError.ReadToEndAsync();
 var panelConfig = Path.Combine(output, "panel-settings.json");
@@ -113,6 +137,8 @@ using var client = new HttpClient { BaseAddress = new Uri(ready["url"]!.GetValue
 Check((await client.GetAsync("/api/config")).StatusCode == HttpStatusCode.Unauthorized, "config requires token");
 client.DefaultRequestHeaders.Add("X-CustomAI-Token", browserToken);
 Check((await client.GetAsync("/api/config")).IsSuccessStatusCode, "browser token accepted");
+Check((await client.GetFromJsonAsync<JsonObject>("/api/manifestdex/account"))?["connected"]?.GetValue<bool>()==false, "hosted account endpoint writes JSON when disconnected");
+Check((await client.PostAsJsonAsync("/api/manifestdex/poll",new{})).Content.Headers.ContentType?.MediaType=="application/json", "hosted poll endpoint writes JSON without an active flow");
 client.DefaultRequestHeaders.Add("Origin", "https://example.com");
 Check((await client.GetAsync("/api/config")).StatusCode == HttpStatusCode.Forbidden, "foreign origin rejected");
 client.DefaultRequestHeaders.Remove("Origin");
@@ -152,10 +178,66 @@ foreach (var name in new[] { "Assembly-CSharp.dll", "ScriptsAssDef.dll" })
     File.Copy(source, Path.Combine(managed, name));
 }
 var dist = Path.Combine(root, "dist");
-Check(Installer.Main(["install", game, dist]) == 0, "installer on clean supported copies");
+var gameConfig = Path.Combine(game, "customai.toml");
+var beforeInvalidInstall = Installer.Hash(Path.Combine(managed, "Assembly-CSharp.dll"));
+Check(Installer.Main(["install", game, dist, "--disable-kolkata=maybe"]) != 0 && !File.Exists(gameConfig) &&
+    !File.Exists(Path.Combine(game, "CustomAI", "manifest.json")) && Installer.Hash(Path.Combine(managed, "Assembly-CSharp.dll")) == beforeInvalidInstall,
+    "invalid Kolkata option is rejected before configuration or game files change");
+Check(Installer.Main(["install", game, dist]) == 0 && !File.Exists(gameConfig), "install without a choice preserves the default enabled backend");
+Check(Installer.Main(["install", game, dist, "--disable-kolkata=true"]) == 0 && BackendConfig.Read(gameConfig), "installer Yes saves disabled Kolkata startup setting");
 Check(Installer.Main(["verify", game]) == 0, "patched assembly hook verification");
-Check(Installer.Main(["install", game, dist]) == 0, "idempotent reinstall");
-Check(Installer.Main(["uninstall", game]) == 0, "uninstall restores originals");
+using (var assembly = Mono.Cecil.AssemblyDefinition.ReadAssembly(Path.Combine(managed, "Assembly-CSharp.dll")))
+{
+    var api = assembly.MainModule.Types.Single(t => t.Name == "KolkataApi");
+    Check(api.Methods.Single(m => m.Name == "Awake").Body.Instructions.Any(i => i.Operand is Mono.Cecil.MethodReference m &&
+        m.DeclaringType.FullName == "Swyf.CustomAI.Runtime" && m.Name == "ConfigureBackend"), "Kolkata startup config runs from Awake before OnEnable");
+    Check(!assembly.MainModule.GetMemberReferences().Any(m => m.DeclaringType.FullName == "Swyf.CustomAI.Runtime" && m.Name == "SkipAuth"), "new installation has no legacy fake-auth hook");
+}
+const string preservedConfig = "# keep this comment and formatting\r\ndisable_kolkata_api = true # private play\r\n";
+File.WriteAllText(gameConfig, preservedConfig);
+Check(Installer.Main(["install", game, dist]) == 0 && File.ReadAllText(gameConfig) == preservedConfig, "reinstall without a choice preserves exact startup configuration");
+Check(Installer.Main(["verify", game, dist, "--disable-kolkata=false"]) != 0 && File.ReadAllText(gameConfig) == preservedConfig, "Kolkata choice is accepted only by install");
+Check(Installer.Main(["install", game, dist, "--disable-kolkata=false"]) == 0 && !BackendConfig.Read(gameConfig), "installer No re-enables Kolkata at next startup");
+// Recreate the earlier four-hook layout only in disposable copies, then exercise its migration.
+var legacyAssemblyPath = Path.Combine(managed, "Assembly-CSharp.dll");
+using (var resolver = new Mono.Cecil.DefaultAssemblyResolver())
+{
+    resolver.AddSearchDirectory(managed);
+    using var assembly = Mono.Cecil.AssemblyDefinition.ReadAssembly(legacyAssemblyPath, new Mono.Cecil.ReaderParameters { AssemblyResolver = resolver });
+    var module = assembly.MainModule;
+    var api = module.Types.Single(t => t.Name == "KolkataApi");
+    var awake = api.Methods.Single(m => m.Name == "Awake");
+    var configure = awake.Body.Instructions.Single(i => i.Operand is Mono.Cecil.MethodReference m && m.DeclaringType.FullName == "Swyf.CustomAI.Runtime" && m.Name == "ConfigureBackend");
+    var runtime = ((Mono.Cecil.MethodReference)configure.Operand).DeclaringType;
+    Check(configure.Previous.OpCode == Mono.Cecil.Cil.OpCodes.Ldarg_0, "startup hook passes the Kolkata component");
+    awake.Body.Instructions.Remove(configure.Previous);
+    configure.Operand = new Mono.Cecil.MethodReference("EnsureInitialized", module.TypeSystem.Void, runtime);
+    foreach (var getter in new[] { "get_BackendAuthenticated", "get_LobbyAuthenticated" })
+    {
+        var method = api.Methods.Single(m => m.Name == getter);
+        var first = method.Body.Instructions[0];
+        var il = method.Body.GetILProcessor();
+        il.InsertBefore(first, il.Create(Mono.Cecil.Cil.OpCodes.Call, new Mono.Cecil.MethodReference("SkipAuth", module.TypeSystem.Boolean, runtime)));
+        il.InsertBefore(first, il.Create(Mono.Cecil.Cil.OpCodes.Brfalse, first));
+        il.InsertBefore(first, il.Create(Mono.Cecil.Cil.OpCodes.Ldc_I4_1));
+        il.InsertBefore(first, il.Create(Mono.Cecil.Cil.OpCodes.Ret));
+    }
+    assembly.Write(legacyAssemblyPath + ".legacy");
+}
+File.Move(legacyAssemblyPath + ".legacy", legacyAssemblyPath, true);
+var legacyManifestPath = Path.Combine(game, "CustomAI", "manifest.json");
+var legacyManifest = JsonNode.Parse(File.ReadAllText(legacyManifestPath))!;
+legacyManifest["Version"] = 4;
+legacyManifest["LegacyMetadata"] = new JsonObject { ["mode"] = "preserved" };
+legacyManifest["Files"]!.AsArray().Single(f => f!["Name"]!.GetValue<string>() == "Assembly-CSharp.dll")!["PatchedHash"] = Installer.Hash(legacyAssemblyPath);
+File.WriteAllText(legacyManifestPath, legacyManifest.ToJsonString());
+Check(Installer.Main(["install", game, dist]) == 0 && Installer.Main(["verify", game]) == 0, "version 4 four-hook installation migrates to current hooks");
+var migratedManifest = JsonNode.Parse(File.ReadAllText(legacyManifestPath))!;
+Check(migratedManifest["Version"]!.GetValue<int>() == 5 && migratedManifest["LegacyMetadata"]?["mode"]?.GetValue<string>() == "preserved", "version 4 migration preserves unknown manifest metadata");
+using (var assembly = Mono.Cecil.AssemblyDefinition.ReadAssembly(legacyAssemblyPath))
+    Check(!assembly.MainModule.GetMemberReferences().Any(m => m.DeclaringType.FullName == "Swyf.CustomAI.Runtime" && m.Name == "SkipAuth"), "version 4 migration removes legacy fake-auth hooks");
+var savedBackendConfig = File.ReadAllText(gameConfig);
+Check(Installer.Main(["uninstall", game]) == 0 && File.ReadAllText(gameConfig) == savedBackendConfig, "uninstall restores originals and preserves Kolkata configuration");
 Check(Installer.Main(["verify", game, dist]) == 0, "restored files remain compatible");
 var releaseZip = Path.Combine(root, "artifacts", "SWYF-Custom-AI-win-x64.zip");
 using (var archive = System.IO.Compression.ZipFile.OpenRead(releaseZip))
@@ -165,18 +247,19 @@ using (var archive = System.IO.Compression.ZipFile.OpenRead(releaseZip))
 }
 System.IO.Compression.ZipFile.ExtractToDirectory(releaseZip, game, true);
 File.WriteAllText(Path.Combine(game, "Scam With Your Friends.exe"), "test presence marker; never executed");
-async Task<int> RunWrapper(string name)
+async Task<int> RunWrapper(string name, string input = "")
 {
     using var wrapper = new Process { StartInfo = new ProcessStartInfo("cmd.exe", "/d /s /c \"\"" + Path.Combine(game, name) + "\"\"")
         { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = output, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true } };
     wrapper.Start();
     var stdout = wrapper.StandardOutput.ReadToEndAsync(); var errors = wrapper.StandardError.ReadToEndAsync();
-    await wrapper.StandardInput.WriteLineAsync(); wrapper.StandardInput.Close();
+    await wrapper.StandardInput.WriteLineAsync(input); wrapper.StandardInput.Close();
     await wrapper.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30));
     if (wrapper.ExitCode != 0) Console.WriteLine(await stdout + await errors);
     return wrapper.ExitCode;
 }
-Check(await RunWrapper("Install Custom AI.cmd") == 0, "double-click installer handles spaces and ampersands from another working directory");
+Check(await RunWrapper("Install Custom AI.cmd", "Y") == 0 && BackendConfig.Read(gameConfig), "double-click installer Yes handles spaces and ampersands from another working directory");
+Check(await RunWrapper("Install Custom AI.cmd", "N") == 0 && !BackendConfig.Read(gameConfig), "double-click installer No saves Kolkata enabled");
 Check(await RunWrapper("Uninstall Custom AI.cmd") == 0, "double-click uninstall restores extracted installation");
 File.WriteAllText(Path.Combine(game, "steam_appid.txt"), "not-a-steam-id");
 Check(await RunWrapper("Play with Custom AI.cmd") != 0, "play wrapper stops on invalid Steam metadata without launching");
@@ -226,5 +309,50 @@ if (args.Contains("--live"))
     Check(text["dialogue"]!.GetValue<string>().Length > 0 && text["trust_percent"]!.GetValue<int>() == 50 && text["emotion"]!.GetValue<string>() == "NEUTRAL", "configured live provider returns valid caller JSON with game defaults");
 }
 await fake.StopAsync(); await fake.DisposeAsync();
+
+using(var handler=new PairingHandler())
+using(var pairing=new ManifestDeXClient(Path.Combine(output,"race","settings.json"),provider,handler)){
+ await pairing.Connect(default);var pending=pairing.Poll(default);await handler.Started.Task;
+ pairing.Disconnect();handler.Release.TrySetResult();await pending;
+ Check(pairing.Effective(new Settings(UseManifestDeX:true)).ApiKey=="","Disconnect ignores a late OAuth completion");
+}
+using(var handler=new PairingHandler())
+using(var pairing=new ManifestDeXClient(Path.Combine(output,"single-flight","settings.json"),provider,handler)){
+ await pairing.Connect(default);handler.Release.TrySetResult();await pairing.Poll(default);
+ await Task.WhenAll(Enumerable.Range(0,8).Select(_=>pairing.Account(default)));
+ Check(handler.AccountCalls==1,"concurrent account refreshes share one combined service request");
+}
+
+using(var handler=new RateLimitedPairingHandler())
+using(var pairing=new ManifestDeXClient(Path.Combine(output,"rate-limit","settings.json"),provider,handler)){
+ for(int i=0;i<2;i++){
+  try{await pairing.Connect(default);throw new Exception("Expected rate limit");}
+  catch(ApiFailure e){Check(e.Status==429&&e.RetryAfter is >590 and <=600,"pairing preserves Retry-After and caches cooldown");}
+ }
+ Check(handler.Calls==1,"repeated pairing clicks do not resend during cooldown");
+}
+
 Console.WriteLine($"ALL {passed} CHECKS PASSED");
 File.WriteAllText(Path.Combine(output, "result.txt"), $"{passed} checks passed at {DateTimeOffset.UtcNow:O}");
+sealed class PairingHandler:HttpMessageHandler
+{
+ public TaskCompletionSource Started=new(TaskCreationOptions.RunContinuationsAsynchronously),Release=new(TaskCreationOptions.RunContinuationsAsynchronously);
+ public int AccountCalls;
+ protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct)
+ {
+  if(request.RequestUri!.AbsolutePath=="/api/auth/start")return Json("""{"flowId":"test-flow","completionKey":"test-key","authorizationUrl":"https://swyf-ai.manifestdex.com/oauth/start"}""");
+  if(request.RequestUri.AbsolutePath=="/api/auth/poll"){Started.TrySetResult();await Release.Task;return Json("""{"status":"approved","ticket":"swyf2_race_test_ticket"}""");}
+  if(request.RequestUri.AbsolutePath=="/api/me"){Interlocked.Increment(ref AccountCalls);await Task.Delay(100,ct);return Json("""{"user":{"id":"m"},"quota":{"windows":[]},"service":{"available":true}}""");}
+  return Json("{}");
+ }
+ private static HttpResponseMessage Json(string value)=>new(HttpStatusCode.OK){Content=new StringContent(value,Encoding.UTF8,"application/json")};
+}
+sealed class RateLimitedPairingHandler:HttpMessageHandler
+{
+ public int Calls;
+ protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct){
+  Interlocked.Increment(ref Calls);await Task.Delay(10,ct);
+  var response=new HttpResponseMessage(HttpStatusCode.TooManyRequests){Content=new StringContent("""{"error":"rate_limit","message":"Too many requests."}""",Encoding.UTF8,"application/json")};
+  response.Headers.RetryAfter=new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromMinutes(10));return response;
+ }
+}

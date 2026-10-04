@@ -3,11 +3,26 @@ setlocal
 if not exist "%~dp0Scam With Your Friends.exe" (
     echo Extract the entire ZIP into the game folder first.
     echo This file must be next to Scam With Your Friends.exe.
-    pause
+    echo Press any key to continue . . .
+    pause >nul
     exit /b 1
 )
-"%~dp0CustomAI\package\installer\SWYF.CustomAI.Installer.exe" install "%~dp0." "%~dp0CustomAI\package"
+echo If you disable Kolkata, press F8 to configure and enable your AI provider.
+echo Kolkata accounts, credits and community cloud features will be unavailable. Steam and networking are unaffected.
+choice /C YN /N /M "Disable the Kolkata API? [Y]es / [N]o: "
+set "kolkataChoice=%errorlevel%"
+set "disableKolkata="
+if "%kolkataChoice%"=="1" set "disableKolkata=true"
+if "%kolkataChoice%"=="2" set "disableKolkata=false"
+if not defined disableKolkata (
+    echo Selection canceled. The mod was not installed.
+    echo Press any key to continue . . .
+    pause >nul
+    exit /b 1
+)
+"%~dp0CustomAI\package\installer\SWYF.CustomAI.Installer.exe" install "%~dp0." "%~dp0CustomAI\package" "--disable-kolkata=%disableKolkata%"
 set "installResult=%errorlevel%"
 if not "%installResult%"=="0" echo Installation failed. Read the error above. Check that ASP.NET Core Runtime 10 x64 is installed.
-pause
+echo Press any key to continue . . .
+pause >nul
 exit /b %installResult%

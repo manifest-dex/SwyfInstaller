@@ -39,6 +39,7 @@ public static class Compatibility
         }
 
         var api = Type(ai, "KolkataApi");
+        if (!InheritsComponent(api)) Fail("KolkataApi is no longer a Unity component.");
         var complete = Method(api, "CompleteOpenRouterAsync", "Cysharp.Threading.Tasks.UniTask`1<Newtonsoft.Json.Linq.JObject>",
             "Newtonsoft.Json.Linq.JObject", "System.Threading.CancellationToken", "System.Boolean");
         var awake = Method(api, "Awake", "System.Void");
@@ -46,6 +47,13 @@ public static class Compatibility
         if (persistence.Length != 1 || persistence[0].OpCode != OpCodes.Call ||
             ((MethodReference)persistence[0].Operand).FullName != "System.Void UnityEngine.Object::DontDestroyOnLoad(UnityEngine.Object)")
             Fail("KolkataApi.Awake no longer contains the expected singleton initialization point.");
+        var onEnable = Method(api, "OnEnable", "System.Void");
+        foreach (var coroutine in new[] { "EnsureBackendAuthentication", "Heartbeat", "MaintainCommunityCallers" })
+            if (Calls(onEnable, "KolkataApi", coroutine).Count() != 1)
+                Fail("KolkataApi backend startup changed: " + coroutine + ".");
+        foreach (var method in new[] { Method(api, "ForceReauth", "System.Void"), Method(api, "RefreshAiCreditStatus", "System.Void", "System.Boolean") })
+            if (!Calls(method, "UnityEngine.Behaviour", "get_isActiveAndEnabled").Any())
+                Fail("KolkataApi disabled-component guard changed: " + method.Name + ".");
 
         // Async state machine shapes vary; inspect calls within the conversation type and its generated types.
         var callers = AllTypes(new[] { Type(ai, "AIConversation") }).SelectMany(t => t.Methods).Where(m => m.HasBody)

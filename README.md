@@ -6,10 +6,11 @@ Press **F8** or click **AI Settings** in the main or pause menu to configure you
 
 - Set the API Base URL, API key, and model without restarting the game.
 - Test the connection and the structured response format expected by callers.
+- See the saved game provider while testing a draft. **Test Connection** does not save; **Save Settings** applies the selection to the game.
 - Optionally override temperature, top-p, and response token limits.
 - See custom-provider status in the main menu instead of the original AI sign-in status.
 
-This mod only replaces the text-generation provider. Speech recognition and voice synthesis are handled by the game and are not modified.
+This mod replaces the text-generation provider and can optionally disable the Kolkata API. Speech recognition and voice synthesis are handled by the game and are not modified.
 
 This is an unofficial Windows Mono Playtest mod. It checks the game methods and libraries it uses, patches two managed assemblies, and keeps verified originals for each game version. It does not include game binaries.
 
@@ -26,7 +27,7 @@ You need:
 1. Close the game and wait for Steam downloads to finish.
 2. In Steam, open **Properties > Installed Files > Browse**.
 3. Extract **all contents** of `SWYF-Custom-AI-win-x64.zip` directly into that folder.
-4. Double-click **Install Custom AI.cmd**. It automatically uses the folder containing the script; no terminal command or game-path entry is needed.
+4. Double-click **Install Custom AI.cmd**. It automatically uses the folder containing the script. At **Disable the Kolkata API? [Y]es / [N]o:**, press **Y** to disable Kolkata or **N** to leave it enabled. The installer saves your choice in `customai.toml` next to the game executable.
 5. Start the game and press **F8** to configure your provider.
 
 The resulting layout should look like this:
@@ -37,6 +38,7 @@ Scam With Your Friends Playtest/
   Install Custom AI.cmd
   Play with Custom AI.cmd
   Uninstall Custom AI.cmd
+  customai.toml                    # Created by the installer when you choose Y or N
   CustomAI/
     README.md
     package/
@@ -57,9 +59,37 @@ Replace the path with your installation folder.
 
 If you have the source repository rather than a built package, follow [Build from source](#build-from-source) first. The repository's `install.ps1` automatically uses its `dist/` package.
 
-The installer backs up the original assemblies under `<game>/CustomAI/backup/`. Custom AI is **disabled on first installation**. Reinstalling preserves existing settings.
+The installer backs up the original assemblies under `<game>/CustomAI/backup/`. Custom AI is **disabled on first installation**. Reinstalling preserves your provider settings; the CMD prompt updates your Kolkata choice.
+
+To disable Kolkata from PowerShell, use `./install.ps1 -GameDir '<your-game-folder>' -DisableKolkata $true`; use `$false` to enable it. Omitting this parameter preserves the current Kolkata setting and does not prompt.
+
+### Kolkata API setting
+
+The game reads `<game>/customai.toml` once at startup. **Restart the game after changing it.** To disable Kolkata, the file contains:
+
+```toml
+disable_kolkata_api = true
+```
+
+Set this to `false` to enable Kolkata again. With no file, Kolkata stays enabled. When disabled, Kolkata account authentication, credits, and community/cloud features are unavailable. Local features and Steam networking remain enabled. To use AI calls in this mode, configure and enable **Use custom provider** through F8; disabling Kolkata alone does not enable your custom provider. Custom AI requests cannot fall back to Kolkata while it is disabled.
+
+The file supports this single boolean setting, blank lines, and `#` comments. An invalid file disables Kolkata and reports an error in the game log until you fix it and restart. Uninstall preserves the file. In multiplayer, this choice applies only to the computer where the mod is installed; each player who wants Kolkata disabled must install it there.
+
+If you use OpenSteamTool `-onlinefix`, continue launching through the game's original Steam library entry with that option after installation.
 
 ### 2. Configure your provider
+
+#### ManifestDeX AI for members
+
+The F8 panel also offers **Use ManifestDeX AI**, a community-hosted option at `https://swyf-ai.manifestdex.com`. Click **Sign in with ManifestDeX**, approve the requested account, XP/rank and membership permissions in your browser, then select the option and save. Sign-in returns through the SWYF site; no code entry is required. The service must be available and configured by its administrator.
+
+While selected, private provider fields are locked and their saved values are preserved. If the service is disabled, requests fail and the option becomes unavailable for new selections. You can uncheck an existing selection to return to your private provider. Errors do not silently switch to the original game service.
+
+After sign-in the panel shows your name/avatar, Free/Pro membership, rank, remaining personal request/token allowances and reset dates. **Refresh account** immediately checks upgrades; regular checks refresh within 30 seconds. Global budgets are never shown. Profile changes preserve usage. Old device-code sessions require a one-time OAuth reconnection.
+
+The service stores IP address, member identity, game conversations, generated replies and technical request details for 14 days, accessible to its administrator. The OAuth permission page requests consent. The game receives only a separate 30-day SWYF token protected locally with Windows DPAPI. Keep `manifestdex-session.dat` and `member-keys` private. Revoke connections from [Connected applications](https://manifestdex.com/account/connections). Support hosting at [manifestdex.com/donate](https://manifestdex.com/donate).
+
+#### Your own provider
 
 1. Launch the game and press **F8**, or click **AI Settings** in the main or pause menu.
 2. Enter the **API Base URL**, for example `http://127.0.0.1:1234/v1`. The mod appends `/chat/completions`; do not include that suffix yourself.
@@ -156,7 +186,7 @@ With custom AI enabled, the main menu shows the configured model and one of thes
 - **Last request succeeded:** the provider returned a usable Chat Completions response. This is not a continuous connectivity guarantee.
 - **Connection error:** the request or local panel failed; details appear in the warning/panel.
 
-Steam connectivity warnings still apply. Disabling custom AI restores the original game's AI status display. The mod does not disable Steam or other backend authentication.
+Steam connectivity warnings still apply. The `customai.toml` option disables Kolkata authentication and API calls; it does not disable Steam authentication or networking. With Kolkata enabled, disabling custom AI restores the original game's AI status display.
 
 ## Update, verify, or uninstall
 
@@ -263,13 +293,15 @@ dotnet run --project tests/Tests.csproj -c Release -- --provider-only --live
 No Actions runner or background service is needed. Run this on the Windows PC with the game installed:
 
 ```powershell
-./release.ps1 -Tag v1.0.0
+./release.ps1 -Tag v1.1.0
 ```
+
+See [RELEASING.md](RELEASING.md) for v1.1.0 notes, draft publishing and the temporary-local-to-production upgrade.
 
 The script builds and tests the ZIP locally, creates an annotated tag at the current commit, pushes **only that tag** to `origin`, and publishes a GitHub Release with:
 
-- `SWYF-Custom-AI-v1.0.0-win-x64.zip`
-- `SWYF-Custom-AI-v1.0.0-win-x64.zip.sha256`
+- `SWYF-Custom-AI-v1.1.0-win-x64.zip`
+- `SWYF-Custom-AI-v1.1.0-win-x64.zip.sha256`
 
 Set `SWYF_GAME_DIR` in your local shell first, or include `-GameDir '<your-game-folder>'` in the command.
 
@@ -283,16 +315,16 @@ Close the game and panel, and wait for Steam downloads to finish. The working tr
 
 ```powershell
 # Build, test, tag, push the tag, and publish.
-./release.ps1 -Tag v1.0.0 -GameDir '<your-game-folder>'
+./release.ps1 -Tag v1.1.0 -GameDir '<your-game-folder>'
 
 # Build and test the versioned ZIP without changing tags or publishing anything.
-./release.ps1 -Tag v1.0.0 -BuildOnly
+./release.ps1 -Tag v1.1.0 -BuildOnly
 
 # A prerelease tag creates a prerelease on GitHub.
 ./release.ps1 -Tag v1.1.0-beta.1
 ```
 
-New releases start as drafts and are published only after both assets upload successfully. If an upload fails, rerun the same command from the same commit. Existing releases keep their title and notes; matching assets are replaced. An existing draft is published after the upload succeeds. A tag successfully pushed before a later failure remains on GitHub for the retry.
+New releases start as drafts and are published only after both assets upload successfully. If an upload fails, rerun the same command from the same commit. Existing releases keep their title and notes; matching assets are replaced. An existing draft is published after the upload succeeds unless `-Draft` is specified. A tag successfully pushed before a later failure remains on GitHub for the retry.
 
 This is an explicit local command: clicking Publish Release on GitHub or pushing a tag by itself cannot start a build on an unconnected PC. The former runner workflow has been removed. There are no GitHub Actions secrets or runner settings to configure. Only the ZIP and checksum are uploaded; game libraries, test backups, settings, and API keys remain local.
 

@@ -1,14 +1,16 @@
 param(
     [Parameter(Mandatory)][ValidatePattern('^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$')][string]$Tag,
     [string]$GameDir = $env:SWYF_GAME_DIR,
-    [switch]$BuildOnly
+    [switch]$BuildOnly,
+    [string]$NotesFile,
+    [switch]$Draft
 )
 $ErrorActionPreference = 'Stop'
 if ([string]::IsNullOrWhiteSpace($GameDir)) { throw 'Pass -GameDir or set SWYF_GAME_DIR to your game installation folder.' }
 Push-Location $PSScriptRoot
 $previousGameDir = $env:SWYF_GAME_DIR
 try {
-    foreach ($command in @('git', 'dotnet')) { Get-Command $command -ErrorAction Stop | Out-Null }
+    foreach ($command in @('git', 'dotnet', 'node')) { Get-Command $command -ErrorAction Stop | Out-Null }
     if (Get-Process -Name 'Scam With Your Friends', 'SWYF.CustomAI.Panel' -ErrorAction SilentlyContinue) {
         throw 'Close the game and its settings panel before releasing.'
     }
@@ -17,6 +19,14 @@ try {
     $status = git status --porcelain --untracked-files=all
     if ($LASTEXITCODE -ne 0) { throw 'Could not read Git status.' }
     if ($status) { throw 'Commit or otherwise account for local changes before releasing. The ZIP must match the tagged commit.' }
+    if (!$NotesFile) { $NotesFile = Join-Path $PSScriptRoot "releases/$Tag.md" }
+    if (!(Test-Path -LiteralPath $NotesFile -PathType Leaf)) { throw "Missing release notes: $NotesFile" }
+    $version = ([xml](Get-Content Directory.Build.props -Raw)).Project.PropertyGroup.Version
+    if ($Tag -ne "v$version") { throw "Tag must match Directory.Build.props Version ($version)." }
+    # Reject accidental packaging of the temporary local-test companion.
+    $clientSource = Get-Content src/Panel/ManifestDeXClient.cs -Raw
+    if (!$clientSource.Contains('ServiceUrl="https://swyf-ai.manifestdex.com"') -or $clientSource.Contains('Membership.LocalTest') -or $clientSource.Contains('manifestdex-local-session')) { throw 'Release source does not use production membership endpoints/session isolation.' }
+    if ((Get-Content src/Panel/index.html -Raw).Contains('Local test mode')) { throw 'Local test banner found in release source.' }
 
     if (!$BuildOnly) {
         Get-Command gh -ErrorAction Stop | Out-Null
@@ -46,6 +56,8 @@ try {
     $env:SWYF_GAME_DIR = $GameDir
     dotnet run --project tests/Tests.csproj -c Release
     if ($LASTEXITCODE -ne 0) { throw 'Release tests failed; nothing was published.' }
+    node tests/signin-ui.test.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Sign-in UI tests failed; nothing was published.' }
     # Stop if files or HEAD changed while the build was running.
     $currentHead = git rev-parse HEAD
     if ($LASTEXITCODE -ne 0 -or $currentHead -ne $head) { throw 'HEAD changed during the build.' }
@@ -70,13 +82,13 @@ try {
     if ($LASTEXITCODE -ne 0) {
         $flags = @()
         if ($Tag.Contains('-')) { $flags += '--prerelease' }
-        gh release create $Tag --repo $repository --verify-tag --draft --generate-notes --title "SWYF Custom AI $Tag" @flags
+        gh release create $Tag --repo $repository --verify-tag --draft --notes-file $NotesFile --title "SWYF Custom AI $Tag" @flags
         if ($LASTEXITCODE -ne 0) { throw 'Could not create the draft release. The tag was pushed; rerun this command to retry.' }
         $release = 'true'
     }
     gh release upload $Tag $path "$path.sha256" --repo $repository --clobber
     if ($LASTEXITCODE -ne 0) { throw 'Asset upload failed. Rerun the same command to retry; a newly created release remains a draft.' }
-    if ($release -eq 'true') {
+    if ($release -eq 'true' -and !$Draft) {
         gh release edit $Tag --repo $repository --draft=false
         if ($LASTEXITCODE -ne 0) { throw 'Assets uploaded, but publishing the draft failed. Rerun to retry.' }
     }
