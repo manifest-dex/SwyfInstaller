@@ -23,7 +23,6 @@ namespace Swyf.CustomAI
         private static Runtime? instance;
         private static string ModDirectory => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(Runtime).Assembly.Location)!, "..", "..", "CustomAI"));
         private static string ConfigPath => Path.Combine(ModDirectory, "settings.json");
-        private static readonly bool kolkataDisabled = ReadBackendDisabled();
         private readonly ConcurrentQueue<string> messages = new ConcurrentQueue<string>();
         private Process? helper;
         private string internalToken = "", browserToken = "", url = "";
@@ -42,23 +41,6 @@ namespace Swyf.CustomAI
                 return value == null || value.Type != JTokenType.Boolean || value.Value<bool>();
             }
             catch { return true; }
-        }
-
-        private static bool ReadBackendDisabled()
-        {
-            try { return BackendConfig.Read(Path.Combine(ModDirectory, "..", "customai.toml")); }
-            catch
-            {
-                Debug.LogError("[CustomAI] Invalid customai.toml; Kolkata API is disabled. Fix the file and restart the game.");
-                return true;
-            }
-        }
-
-        public static void ConfigureBackend(Component api)
-        {
-            EnsureInitialized();
-            if (kolkataDisabled) ((Behaviour)api).enabled = false;
-            Debug.Log("[CustomAI] Kolkata API " + (kolkataDisabled ? "disabled" : "enabled") + " by startup configuration.");
         }
 
         public static void EnsureInitialized()
@@ -146,7 +128,7 @@ namespace Swyf.CustomAI
         public static void RefreshConnectionStatus(Component controller)
         {
             var enabled = ReadEnabled();
-            if (instance == null || (!enabled && !kolkataDisabled)) return;
+            if (instance == null || !enabled) return;
             var self = instance;
             if (enabled && self.url.Length > 0 && !self.pollingStatus && Time.realtimeSinceStartup >= self.nextStatusPoll)
             { self.pollingStatus = true; self.nextStatusPoll = Time.realtimeSinceStartup + 2; self.StartCoroutine(self.PollStatus()); }
@@ -157,13 +139,12 @@ namespace Swyf.CustomAI
             var title = root.Q<Label>("connection-warning-title");
             var body = root.Q<Label>("connection-warning-body");
             if (label == null || warning == null || title == null || body == null) return;
-            var state = !enabled ? "disabled" : self.url.Length == 0 ? "unavailable" : (string?)self.connectionStatus?["state"] ?? "loading";
+            var state = self.url.Length == 0 ? "unavailable" : (string?)self.connectionStatus?["state"] ?? "loading";
             var model = (string?)self.connectionStatus?["model"] ?? "";
             var failed = state == "error" || state == "unavailable" || state == "disabled";
             label.enableRichText = false;
             label.text = "CUSTOM AI: " + (state == "success" ? "LAST REQUEST SUCCEEDED" : state == "connecting" ? "CONNECTING..." :
                 state == "untested" ? "NOT TESTED YET" : failed ? "CONNECTION ERROR" : "CHECKING STATUS...") + (model.Length > 0 ? " · " + model : "");
-            if (!enabled) label.text = "KOLKATA API DISABLED";
             label.EnableInClassList("connection-state--ready", state == "success");
             label.EnableInClassList("connection-state--failed", failed);
             foreach (var name in new[] { "vip-membership-role", "unlimited-membership-role" })
@@ -175,11 +156,6 @@ namespace Swyf.CustomAI
             title.text = failed ? "CUSTOM AI CONNECTION FAILED" : "CUSTOM AI NOT TESTED YET";
             body.text = failed ? ((string?)self.connectionStatus?["message"] ?? self.error) + " Press F8 to open settings." :
                 "Press F8 to test the connection, or start a call. Game AI sign-in does not indicate the status of this provider.";
-            if (!enabled)
-            {
-                title.text = "CUSTOM AI SETUP REQUIRED";
-                body.text = "Kolkata API is disabled. Press F8 to configure and enable your custom provider.";
-            }
         }
 
         private IEnumerator PollStatus()
@@ -230,12 +206,7 @@ namespace Swyf.CustomAI
         {
             EnsureInitialized();
             result = default;
-            if (!ReadEnabled())
-            {
-                if (!kolkataDisabled) return false;
-                result = UniTask.FromException<JObject>(new InvalidOperationException("Kolkata API is disabled. Press F8 to configure and enable your custom provider."));
-                return true;
-            }
+            if (!ReadEnabled()) return false;
             if (!NetworkServer.active || !NetworkServer.listen)
             { result = UniTask.FromException<JObject>(new InvalidOperationException("The custom provider only runs on the lobby host.")); return true; }
             if (instance == null || instance.url.Length == 0 || instance.helper == null || instance.helper.HasExited)

@@ -14,21 +14,6 @@ var output = Path.Combine(root, "artifacts", "tests", DateTime.UtcNow.ToString("
 Directory.CreateDirectory(output);
 int passed = 0;
 void Check(bool condition, string name) { if (!condition) throw new Exception("FAIL: " + name); Console.WriteLine("PASS: " + name); passed++; }
-var backendConfig = Path.Combine(output, "customai.toml");
-Check(!BackendConfig.Read(backendConfig), "missing Kolkata configuration keeps the backend enabled");
-foreach (var text in new[] { "", "# installer setting\n", "disable_kolkata_api = false\n" })
-{
-    File.WriteAllText(backendConfig, text);
-    Check(!BackendConfig.Read(backendConfig), "absent or false Kolkata setting keeps the backend enabled");
-}
-File.WriteAllText(backendConfig, "  # startup configuration\r\n  disable_kolkata_api  =  true  # disabled\r\n", new UTF8Encoding(true));
-Check(BackendConfig.Read(backendConfig), "Kolkata configuration supports BOM, comments and whitespace");
-foreach (var text in new[] { "disable_kolkata_api = maybe", "disable_kolkata_api = True", "disable_kolkata_api = \"true\"", "disable_kolkata_api = true\ndisable_kolkata_api = false", "[backend]\ndisable_kolkata_api = true", "unexpected = true" })
-{
-    File.WriteAllText(backendConfig, text);
-    try { BackendConfig.Read(backendConfig); throw new Exception("Invalid Kolkata configuration was accepted: " + text); }
-    catch (FormatException) { Check(true, "invalid or ambiguous Kolkata configuration is rejected"); }
-}
 async Task Failure(Func<Task> task, string code)
 { try { await task(); throw new Exception("Expected " + code); } catch (ApiFailure e) { Check(e.Code == code, code); } }
 var builder = WebApplication.CreateBuilder(); builder.Logging.ClearProviders();
@@ -180,64 +165,83 @@ foreach (var name in new[] { "Assembly-CSharp.dll", "ScriptsAssDef.dll" })
 var dist = Path.Combine(root, "dist");
 var gameConfig = Path.Combine(game, "customai.toml");
 var beforeInvalidInstall = Installer.Hash(Path.Combine(managed, "Assembly-CSharp.dll"));
-Check(Installer.Main(["install", game, dist, "--disable-kolkata=maybe"]) != 0 && !File.Exists(gameConfig) &&
+Check(Installer.Main(["install", game, dist, "--disable-kolkata=true"]) != 0 && !File.Exists(gameConfig) &&
     !File.Exists(Path.Combine(game, "CustomAI", "manifest.json")) && Installer.Hash(Path.Combine(managed, "Assembly-CSharp.dll")) == beforeInvalidInstall,
-    "invalid Kolkata option is rejected before configuration or game files change");
-Check(Installer.Main(["install", game, dist]) == 0 && !File.Exists(gameConfig), "install without a choice preserves the default enabled backend");
-Check(Installer.Main(["install", game, dist, "--disable-kolkata=true"]) == 0 && BackendConfig.Read(gameConfig), "installer Yes saves disabled Kolkata startup setting");
+    "removed installer option is rejected before game files change");
+Check(Installer.Main(["install", game, dist]) == 0 && !File.Exists(gameConfig), "new installation creates no startup configuration");
 Check(Installer.Main(["verify", game]) == 0, "patched assembly hook verification");
-using (var assembly = Mono.Cecil.AssemblyDefinition.ReadAssembly(Path.Combine(managed, "Assembly-CSharp.dll")))
-{
-    var api = assembly.MainModule.Types.Single(t => t.Name == "KolkataApi");
-    Check(api.Methods.Single(m => m.Name == "Awake").Body.Instructions.Any(i => i.Operand is Mono.Cecil.MethodReference m &&
-        m.DeclaringType.FullName == "Swyf.CustomAI.Runtime" && m.Name == "ConfigureBackend"), "Kolkata startup config runs from Awake before OnEnable");
-    Check(!assembly.MainModule.GetMemberReferences().Any(m => m.DeclaringType.FullName == "Swyf.CustomAI.Runtime" && m.Name == "SkipAuth"), "new installation has no legacy fake-auth hook");
-}
-const string preservedConfig = "# keep this comment and formatting\r\ndisable_kolkata_api = true # private play\r\n";
-File.WriteAllText(gameConfig, preservedConfig);
-Check(Installer.Main(["install", game, dist]) == 0 && File.ReadAllText(gameConfig) == preservedConfig, "reinstall without a choice preserves exact startup configuration");
-Check(Installer.Main(["verify", game, dist, "--disable-kolkata=false"]) != 0 && File.ReadAllText(gameConfig) == preservedConfig, "Kolkata choice is accepted only by install");
-Check(Installer.Main(["install", game, dist, "--disable-kolkata=false"]) == 0 && !BackendConfig.Read(gameConfig), "installer No re-enables Kolkata at next startup");
-// Recreate the earlier four-hook layout only in disposable copies, then exercise its migration.
 var legacyAssemblyPath = Path.Combine(managed, "Assembly-CSharp.dll");
-using (var resolver = new Mono.Cecil.DefaultAssemblyResolver())
-{
-    resolver.AddSearchDirectory(managed);
-    using var assembly = Mono.Cecil.AssemblyDefinition.ReadAssembly(legacyAssemblyPath, new Mono.Cecil.ReaderParameters { AssemblyResolver = resolver });
-    var module = assembly.MainModule;
-    var api = module.Types.Single(t => t.Name == "KolkataApi");
-    var awake = api.Methods.Single(m => m.Name == "Awake");
-    var configure = awake.Body.Instructions.Single(i => i.Operand is Mono.Cecil.MethodReference m && m.DeclaringType.FullName == "Swyf.CustomAI.Runtime" && m.Name == "ConfigureBackend");
-    var runtime = ((Mono.Cecil.MethodReference)configure.Operand).DeclaringType;
-    Check(configure.Previous.OpCode == Mono.Cecil.Cil.OpCodes.Ldarg_0, "startup hook passes the Kolkata component");
-    awake.Body.Instructions.Remove(configure.Previous);
-    configure.Operand = new Mono.Cecil.MethodReference("EnsureInitialized", module.TypeSystem.Void, runtime);
-    foreach (var getter in new[] { "get_BackendAuthenticated", "get_LobbyAuthenticated" })
-    {
-        var method = api.Methods.Single(m => m.Name == getter);
-        var first = method.Body.Instructions[0];
-        var il = method.Body.GetILProcessor();
-        il.InsertBefore(first, il.Create(Mono.Cecil.Cil.OpCodes.Call, new Mono.Cecil.MethodReference("SkipAuth", module.TypeSystem.Boolean, runtime)));
-        il.InsertBefore(first, il.Create(Mono.Cecil.Cil.OpCodes.Brfalse, first));
-        il.InsertBefore(first, il.Create(Mono.Cecil.Cil.OpCodes.Ldc_I4_1));
-        il.InsertBefore(first, il.Create(Mono.Cecil.Cil.OpCodes.Ret));
-    }
-    assembly.Write(legacyAssemblyPath + ".legacy");
-}
-File.Move(legacyAssemblyPath + ".legacy", legacyAssemblyPath, true);
 var legacyManifestPath = Path.Combine(game, "CustomAI", "manifest.json");
-var legacyManifest = JsonNode.Parse(File.ReadAllText(legacyManifestPath))!;
-legacyManifest["Version"] = 4;
-legacyManifest["LegacyMetadata"] = new JsonObject { ["mode"] = "preserved" };
-legacyManifest["Files"]!.AsArray().Single(f => f!["Name"]!.GetValue<string>() == "Assembly-CSharp.dll")!["PatchedHash"] = Installer.Hash(legacyAssemblyPath);
-File.WriteAllText(legacyManifestPath, legacyManifest.ToJsonString());
-Check(Installer.Main(["install", game, dist]) == 0 && Installer.Main(["verify", game]) == 0, "version 4 four-hook installation migrates to current hooks");
-var migratedManifest = JsonNode.Parse(File.ReadAllText(legacyManifestPath))!;
-Check(migratedManifest["Version"]!.GetValue<int>() == 5 && migratedManifest["LegacyMetadata"]?["mode"]?.GetValue<string>() == "preserved", "version 4 migration preserves unknown manifest metadata");
-using (var assembly = Mono.Cecil.AssemblyDefinition.ReadAssembly(legacyAssemblyPath))
-    Check(!assembly.MainModule.GetMemberReferences().Any(m => m.DeclaringType.FullName == "Swyf.CustomAI.Runtime" && m.Name == "SkipAuth"), "version 4 migration removes legacy fake-auth hooks");
-var savedBackendConfig = File.ReadAllText(gameConfig);
-Check(Installer.Main(["uninstall", game]) == 0 && File.ReadAllText(gameConfig) == savedBackendConfig, "uninstall restores originals and preserves Kolkata configuration");
+var privateSettings = Path.Combine(game, "CustomAI", "settings.json");
+const string privateSettingsText = "{\"enabled\":false,\"apiKey\":\"fixture-private-key\"}";
+File.WriteAllText(privateSettings, privateSettingsText);
+using (var bridge = Mono.Cecil.AssemblyDefinition.ReadAssembly(Path.Combine(dist, "bridge", "SWYF.CustomAI.Bridge.dll")))
+{
+    Check(!bridge.MainModule.Types.Any(t => t.Name == "BackendConfig") &&
+        !bridge.MainModule.Types.Single(t => t.Name == "Runtime").Methods.Any(m => m.Name is "ConfigureBackend" or "ReadBackendDisabled"),
+        "release bridge has no backend-disable feature or configuration parser");
+}
+void CheckStandardHooks(string message)
+{
+    using var assembly = Mono.Cecil.AssemblyDefinition.ReadAssembly(legacyAssemblyPath);
+    var api = assembly.MainModule.Types.Single(t => t.Name == "KolkataApi");
+    Check(api.Methods.Single(m => m.Name == "Awake").Body.Instructions.Count(i => i.Operand is Mono.Cecil.MethodReference m &&
+        m.DeclaringType.FullName == "Swyf.CustomAI.Runtime" && m.Name == "EnsureInitialized") == 1 &&
+        !assembly.MainModule.GetMemberReferences().Any(m => m.DeclaringType.FullName == "Swyf.CustomAI.Runtime" && m.Name is "ConfigureBackend" or "SkipAuth"), message);
+}
+CheckStandardHooks("new installation initializes the mod without backend or authentication overrides");
+// Recreate the withdrawn test layouts only in disposable copies and migrate from verified backups.
+foreach (var legacyVersion in new[] { 4, 5 })
+{
+    using (var resolver = new Mono.Cecil.DefaultAssemblyResolver())
+    {
+        resolver.AddSearchDirectory(managed);
+        using var assembly = Mono.Cecil.AssemblyDefinition.ReadAssembly(legacyAssemblyPath, new Mono.Cecil.ReaderParameters { AssemblyResolver = resolver });
+        var module = assembly.MainModule;
+        var api = module.Types.Single(t => t.Name == "KolkataApi");
+        var awake = api.Methods.Single(m => m.Name == "Awake");
+        var initialize = awake.Body.Instructions.Single(i => i.Operand is Mono.Cecil.MethodReference m && m.DeclaringType.FullName == "Swyf.CustomAI.Runtime" && m.Name == "EnsureInitialized");
+        var runtime = ((Mono.Cecil.MethodReference)initialize.Operand).DeclaringType;
+        if (legacyVersion == 5)
+        {
+            var configure = new Mono.Cecil.MethodReference("ConfigureBackend", module.TypeSystem.Void, runtime);
+            configure.Parameters.Add(new Mono.Cecil.ParameterDefinition(new Mono.Cecil.TypeReference("UnityEngine", "Component", module,
+                module.AssemblyReferences.Single(r => r.Name == "UnityEngine.CoreModule"))));
+            awake.Body.GetILProcessor().InsertBefore(initialize, Mono.Cecil.Cil.Instruction.Create(Mono.Cecil.Cil.OpCodes.Ldarg_0));
+            initialize.Operand = configure;
+        }
+        else
+        {
+            foreach (var getter in new[] { "get_BackendAuthenticated", "get_LobbyAuthenticated" })
+            {
+                var method = api.Methods.Single(m => m.Name == getter);
+                var first = method.Body.Instructions[0];
+                var il = method.Body.GetILProcessor();
+                il.InsertBefore(first, il.Create(Mono.Cecil.Cil.OpCodes.Call, new Mono.Cecil.MethodReference("SkipAuth", module.TypeSystem.Boolean, runtime)));
+                il.InsertBefore(first, il.Create(Mono.Cecil.Cil.OpCodes.Brfalse, first));
+                il.InsertBefore(first, il.Create(Mono.Cecil.Cil.OpCodes.Ldc_I4_1));
+                il.InsertBefore(first, il.Create(Mono.Cecil.Cil.OpCodes.Ret));
+            }
+        }
+        assembly.Write(legacyAssemblyPath + ".legacy");
+    }
+    File.Move(legacyAssemblyPath + ".legacy", legacyAssemblyPath, true);
+    var legacyManifest = JsonNode.Parse(File.ReadAllText(legacyManifestPath))!;
+    legacyManifest["Version"] = legacyVersion;
+    legacyManifest["LegacyMetadata"] = new JsonObject { ["mode"] = "preserved" };
+    legacyManifest["Files"]!.AsArray().Single(f => f!["Name"]!.GetValue<string>() == "Assembly-CSharp.dll")!["PatchedHash"] = Installer.Hash(legacyAssemblyPath);
+    File.WriteAllText(legacyManifestPath, legacyManifest.ToJsonString());
+    File.WriteAllText(gameConfig, "disable_kolkata_api = true\n");
+    Check(Installer.Main(["install", game, dist]) == 0 && Installer.Main(["verify", game]) == 0, $"version {legacyVersion} test installation migrates to current hooks");
+    var migratedManifest = JsonNode.Parse(File.ReadAllText(legacyManifestPath))!;
+    Check(migratedManifest["Version"]!.GetValue<int>() == 6 && migratedManifest["LegacyMetadata"]?["mode"]?.GetValue<string>() == "preserved" &&
+        !File.Exists(gameConfig) && File.ReadAllText(privateSettings) == privateSettingsText,
+        $"version {legacyVersion} migration removes obsolete config and preserves private settings and manifest metadata");
+    CheckStandardHooks($"version {legacyVersion} migration removes backend and authentication overrides");
+}
+File.WriteAllText(gameConfig, "obsolete test configuration");
+Check(Installer.Main(["uninstall", game]) == 0 && !File.Exists(gameConfig) && File.ReadAllText(privateSettings) == privateSettingsText,
+    "uninstall removes obsolete config while preserving private settings");
 Check(Installer.Main(["verify", game, dist]) == 0, "restored files remain compatible");
 var releaseZip = Path.Combine(root, "artifacts", "SWYF-Custom-AI-win-x64.zip");
 using (var archive = System.IO.Compression.ZipFile.OpenRead(releaseZip))
@@ -247,8 +251,8 @@ using (var archive = System.IO.Compression.ZipFile.OpenRead(releaseZip))
     Check(archive.GetEntry("CustomAI/package/prerequisites.ps1") is not null, "release ZIP includes the Windows PowerShell prerequisite bootstrap");
     using var installerText = new StreamReader(archive.GetEntry("Install Custom AI.cmd")!.Open());
     var installScript = installerText.ReadToEnd();
-    Check(installScript.Contains("choice /C YN /N /M \"Disable the Kolkata API? [Y]es / [N]o: \"") &&
-        installScript.Contains("Selection canceled. The mod was not installed."), "packaged installer uses English instructions and Y/N choices");
+    Check(!installScript.Contains("choice /C") && !installScript.Contains("--disable-kolkata") &&
+        installScript.Contains("Press any key to continue"), "packaged installer has English messages and no backend selection prompt");
 }
 System.IO.Compression.ZipFile.ExtractToDirectory(releaseZip, game, true);
 File.WriteAllText(Path.Combine(game, "Scam With Your Friends.exe"), "test presence marker; never executed");
@@ -268,14 +272,14 @@ var beforeFailedSetup = Installer.Hash(Path.Combine(managed, "Assembly-CSharp.dl
 File.Move(packagedPanelConfig, packagedPanelConfig + ".test-backup");
 try
 {
-    Check(await RunWrapper("Install Custom AI.cmd", "Y") != 0 &&
+    Check(await RunWrapper("Install Custom AI.cmd") != 0 &&
         Installer.Hash(Path.Combine(managed, "Assembly-CSharp.dll")) == beforeFailedSetup &&
-        File.ReadAllText(gameConfig) == savedBackendConfig,
-        "failed prerequisite check stops the CMD wrapper before patching or changing Kolkata settings");
+        !File.Exists(gameConfig),
+        "failed prerequisite check stops the CMD wrapper before changing game files");
 }
 finally { File.Move(packagedPanelConfig + ".test-backup", packagedPanelConfig); }
-Check(await RunWrapper("Install Custom AI.cmd", "Y") == 0 && BackendConfig.Read(gameConfig), "double-click installer Yes handles spaces and ampersands from another working directory");
-Check(await RunWrapper("Install Custom AI.cmd", "N") == 0 && !BackendConfig.Read(gameConfig), "double-click installer No saves Kolkata enabled");
+Check(await RunWrapper("Install Custom AI.cmd") == 0 && !File.Exists(gameConfig), "double-click installer needs no selection and handles spaces and ampersands from another working directory");
+Check(await RunWrapper("Install Custom AI.cmd") == 0 && File.ReadAllText(privateSettings) == privateSettingsText, "double-click reinstall preserves private settings");
 Check(await RunWrapper("Uninstall Custom AI.cmd") == 0, "double-click uninstall restores extracted installation");
 File.WriteAllText(Path.Combine(game, "steam_appid.txt"), "not-a-steam-id");
 Check(await RunWrapper("Play with Custom AI.cmd") != 0, "play wrapper stops on invalid Steam metadata without launching");

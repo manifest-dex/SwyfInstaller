@@ -10,7 +10,7 @@ Press **F8** or click **AI Settings** in the main or pause menu to configure you
 - Optionally override temperature, top-p, and response token limits.
 - See custom-provider status in the main menu instead of the original AI sign-in status.
 
-This mod replaces the text-generation provider and can optionally disable the Kolkata API. Speech recognition and voice synthesis are handled by the game and are not modified.
+This mod replaces the text-generation provider. Speech recognition and voice synthesis are handled by the game and are not modified.
 
 This is an unofficial Windows Mono Playtest mod. It checks the game methods and libraries it uses, patches two managed assemblies, and keeps verified originals for each game version. It does not include game binaries.
 
@@ -27,7 +27,7 @@ You need:
 1. Close the game and wait for Steam downloads to finish.
 2. In Steam, open **Properties > Installed Files > Browse**.
 3. Extract **all contents** of `SWYF-Custom-AI-win-x64.zip` directly into that folder.
-4. Double-click **Install Custom AI.cmd**. It checks the required runtimes before modifying the game. If a runtime is missing, wait for the Microsoft download and approve the Windows administrator prompt. If a restart is requested, restart Windows and run the script again. At **Disable the Kolkata API? [Y]es / [N]o:**, press **Y** to disable Kolkata or **N** to leave it enabled. The installer saves your choice in `customai.toml` next to the game executable.
+4. Double-click **Install Custom AI.cmd**. It checks the required runtimes before modifying the game. If a runtime is missing, wait for the Microsoft download and approve the Windows administrator prompt. If a restart is requested, restart Windows and run the script again.
 5. Start the game and press **F8** to configure your provider.
 
 The resulting layout should look like this:
@@ -38,7 +38,6 @@ Scam With Your Friends Playtest/
   Install Custom AI.cmd
   Play with Custom AI.cmd
   Uninstall Custom AI.cmd
-  customai.toml                    # Created by the installer when you choose Y or N
   CustomAI/
     README.md
     package/
@@ -62,23 +61,7 @@ Replace the path with your installation folder.
 
 If you have the source repository rather than a built package, follow [Build from source](#build-from-source) first. The repository's `install.ps1` automatically uses its `dist/` package.
 
-The installer backs up the original assemblies under `<game>/CustomAI/backup/`. Custom AI is **disabled on first installation**. Reinstalling preserves your provider settings; the CMD prompt updates your Kolkata choice.
-
-To disable Kolkata from PowerShell, use `./install.ps1 -GameDir '<your-game-folder>' -DisableKolkata $true`; use `$false` to enable it. Omitting this parameter preserves the current Kolkata setting and does not prompt.
-
-### Kolkata API setting
-
-The game reads `<game>/customai.toml` once at startup. **Restart the game after changing it.** To disable Kolkata, the file contains:
-
-```toml
-disable_kolkata_api = true
-```
-
-Set this to `false` to enable Kolkata again. With no file, Kolkata stays enabled. When disabled, Kolkata account authentication, credits, and community/cloud features are unavailable. Local features and Steam networking remain enabled. To use AI calls in this mode, configure and enable **Use custom provider** through F8; disabling Kolkata alone does not enable your custom provider. Custom AI requests cannot fall back to Kolkata while it is disabled.
-
-The file supports this single boolean setting, blank lines, and `#` comments. An invalid file disables Kolkata and reports an error in the game log until you fix it and restart. Uninstall preserves the file. In multiplayer, this choice applies only to the computer where the mod is installed; each player who wants Kolkata disabled must install it there.
-
-If you use OpenSteamTool `-onlinefix`, continue launching through the game's original Steam library entry with that option after installation.
+The installer backs up the original assemblies under `<game>/CustomAI/backup/`. Custom AI is **disabled on first installation**. Reinstalling preserves your provider settings.
 
 ### 2. Configure your provider
 
@@ -189,7 +172,7 @@ With custom AI enabled, the main menu shows the configured model and one of thes
 - **Last request succeeded:** the provider returned a usable Chat Completions response. This is not a continuous connectivity guarantee.
 - **Connection error:** the request or local panel failed; details appear in the warning/panel.
 
-Steam connectivity warnings still apply. The `customai.toml` option disables Kolkata authentication and API calls; it does not disable Steam authentication or networking. With Kolkata enabled, disabling custom AI restores the original game's AI status display.
+Steam connectivity warnings still apply. Disabling custom AI restores the original game's AI provider and status display.
 
 ## Update, verify, or uninstall
 

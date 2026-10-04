@@ -1,7 +1,6 @@
 param(
     [ValidateSet('install','uninstall','verify')][string]$Action = 'install',
-    [string]$GameDir = $env:SWYF_GAME_DIR,
-    [Nullable[bool]]$DisableKolkata = $null
+    [string]$GameDir = $env:SWYF_GAME_DIR
 )
 $ErrorActionPreference = 'Stop'
 if ([string]::IsNullOrWhiteSpace($GameDir) -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'Scam With Your Friends.exe'))) { $GameDir = $PSScriptRoot }
@@ -14,6 +13,5 @@ if ($Action -eq 'install') {
     if ($LASTEXITCODE -ne 0) { throw 'Prerequisites are not ready. The mod was not installed. Read the message above.' }
 }
 $installerArgs = @($Action, $GameDir, $package)
-if ($Action -eq 'install' -and $null -ne $DisableKolkata) { $installerArgs += '--disable-kolkata=' + $DisableKolkata.ToString().ToLowerInvariant() }
 & $installer @installerArgs
 if ($LASTEXITCODE) { throw 'The installation operation failed.' }

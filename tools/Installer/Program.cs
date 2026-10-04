@@ -24,17 +24,11 @@ public static class Program
         if (args is ["--check-runtime"]) { Console.WriteLine("SWYF_RUNTIME_OK"); return 0; }
         try
         {
-            if (args.Length < 2 || args[0] is not ("install" or "uninstall" or "verify" or "launch"))
+            if (args.Length is < 2 or > 3 || args[0] is not ("install" or "uninstall" or "verify" or "launch"))
                 throw new InvalidOperationException("Usage: Installer install|uninstall|verify|launch <game directory> [package directory]");
-            bool? disableKolkata = null;
-            if (args.Length > 3)
-            {
-                if (args.Length != 4 || args[0] != "install" || args[3] is not ("--disable-kolkata=true" or "--disable-kolkata=false"))
-                    throw new ArgumentException("Only install accepts --disable-kolkata=true or --disable-kolkata=false after the package directory.");
-                disableKolkata = args[3] == "--disable-kolkata=true";
-            }
             var game = Path.GetFullPath(args[1]);
-            var backendConfig = Path.Combine(game, "customai.toml");
+            // Remove the obsolete startup file from the withdrawn test build on upgrade/uninstall.
+            var legacyConfig = Path.Combine(game, "customai.toml");
             string? steamAppId = null;
             if (args[0] == "launch")
             {
@@ -49,7 +43,7 @@ public static class Program
                 Process.GetProcessesByName("SWYF.CustomAI.Panel").Length > 0))
                 throw new InvalidOperationException("Close the game first.");
             Manifest? manifest = File.Exists(manifestPath) ? JsonSerializer.Deserialize<Manifest>(File.ReadAllText(manifestPath)) : null;
-            if (manifest != null && (manifest.Version is not (1 or 2 or 3 or 4 or 5) || manifest.Files == null || manifest.Files.Length != 2 ||
+            if (manifest != null && (manifest.Version is not (1 or 2 or 3 or 4 or 5 or 6) || manifest.Files == null || manifest.Files.Length != 2 ||
                 manifest.Files.Any(x => x == null || !GameFiles.Contains(x.Name) || !ValidHash(x.OriginalHash) || !ValidHash(x.PatchedHash)) ||
                 manifest.Files.Select(x => x.Name).Distinct().Count() != 2))
                 throw new InvalidOperationException("Invalid installation manifest.");
@@ -57,7 +51,7 @@ public static class Program
                 Path.Combine(mod, "backup", file.OriginalHash, file.Name);
             if (args[0] == "uninstall")
             {
-                if (manifest == null) { Console.WriteLine("The mod is not installed."); return 0; }
+                if (manifest == null) { File.Delete(legacyConfig); Console.WriteLine("The mod is not installed."); return 0; }
                 var restore = new List<FileRecord>();
                 foreach (var file in manifest.Files)
                 {
@@ -73,6 +67,7 @@ public static class Program
                 }
                 foreach (var file in restore) AtomicCopy(Backup(file), Path.Combine(managed, file.Name));
                 File.Delete(Path.Combine(managed, BridgeName));
+                File.Delete(legacyConfig);
                 File.Delete(manifestPath);
                 Console.WriteLine("Mod uninstalled; original DLLs restored. Settings and backups were preserved in CustomAI.");
                 return 0;
@@ -90,7 +85,8 @@ public static class Program
                 {
                     var backup = Backup(record); RequireHash(backup, record.OriginalHash);
                     sources[name] = backup;
-                    VerifyPatched(live, name == "ScriptsAssDef.dll" ? (manifest!.Version == 1 ? 2 : 3) : (manifest!.Version == 4 ? 4 : 2), manifest.Version == 5);
+                    VerifyPatched(live, name == "ScriptsAssDef.dll" ? (manifest!.Version == 1 ? 2 : 3) : (manifest!.Version == 4 ? 4 : 2),
+                        manifest.Version == 5 ? "ConfigureBackend" : manifest.Version == 6 ? "EnsureInitialized" : null);
                 }
                 else { Compatibility.RequireUnpatched(live); sources[name] = live; needsRepair = true; }
             }
@@ -119,7 +115,7 @@ public static class Program
                     File.Copy(sources[name], backup);
                 RequireHash(backup, originalHash);
                 Patch(backup, Path.Combine(stage, name), bridge, managed);
-                VerifyPatched(Path.Combine(stage, name), name == "ScriptsAssDef.dll" ? 3 : 2, true);
+                VerifyPatched(Path.Combine(stage, name), name == "ScriptsAssDef.dll" ? 3 : 2, "EnsureInitialized");
                 records.Add(new(name, originalHash, Hash(Path.Combine(stage, name))));
             }
             // Catch a concurrent Steam update before touching live files.
@@ -128,7 +124,7 @@ public static class Program
             foreach (var name in GameFiles) File.Copy(Path.Combine(managed, name), Path.Combine(stage, name + ".rollback"), true);
             bool hadBridge = File.Exists(Path.Combine(managed, BridgeName));
             if (hadBridge) File.Copy(Path.Combine(managed, BridgeName), Path.Combine(stage, BridgeName + ".rollback"), true);
-            var oldBackendConfig = disableKolkata.HasValue && File.Exists(backendConfig) ? File.ReadAllBytes(backendConfig) : null;
+            var oldConfig = File.Exists(legacyConfig) ? File.ReadAllBytes(legacyConfig) : null;
             try
             {
                 foreach (var source in Directory.GetFiles(Path.Combine(package!, "panel"), "*", SearchOption.AllDirectories))
@@ -138,13 +134,8 @@ public static class Program
                 }
                 AtomicCopy(bridge, Path.Combine(managed, BridgeName));
                 foreach (var name in GameFiles) AtomicCopy(Path.Combine(stage, name), Path.Combine(managed, name));
-                if (disableKolkata.HasValue)
-                {
-                    File.WriteAllText(backendConfig + ".tmp", "# Read at game startup; restart after changing this value.\n" +
-                        "disable_kolkata_api = " + (disableKolkata.Value ? "true" : "false") + "\n");
-                    File.Move(backendConfig + ".tmp", backendConfig, true);
-                }
-                var installed = new Manifest(5, records.ToArray()) { Extra = manifest?.Extra };
+                File.Delete(legacyConfig);
+                var installed = new Manifest(6, records.ToArray()) { Extra = manifest?.Extra };
                 File.WriteAllText(manifestPath + ".tmp", JsonSerializer.Serialize(installed, new JsonSerializerOptions { WriteIndented = true }));
                 File.Move(manifestPath + ".tmp", manifestPath, true);
             }
@@ -153,16 +144,10 @@ public static class Program
                 foreach (var name in GameFiles) AtomicCopy(Path.Combine(stage, name + ".rollback"), Path.Combine(managed, name));
                 if (hadBridge) AtomicCopy(Path.Combine(stage, BridgeName + ".rollback"), Path.Combine(managed, BridgeName));
                 else File.Delete(Path.Combine(managed, BridgeName));
-                if (disableKolkata.HasValue)
-                {
-                    if (oldBackendConfig != null) File.WriteAllBytes(backendConfig, oldBackendConfig);
-                    else File.Delete(backendConfig);
-                }
+                if (oldConfig != null) File.WriteAllBytes(legacyConfig, oldConfig);
                 throw;
             }
             Console.WriteLine("Installed. Use the AI Settings button or F8 to open the panel. Existing settings are preserved; new configurations start disabled.");
-            if (disableKolkata.HasValue)
-                Console.WriteLine("Kolkata API " + (disableKolkata.Value ? "disabled" : "enabled") + " in customai.toml. Restart the game to apply changes.");
             if (steamAppId != null)
                 Process.Start(new ProcessStartInfo("steam://rungameid/" + steamAppId) { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden });
             return 0;
@@ -216,9 +201,7 @@ public static class Program
             ExpandBranches(awake);
             var persist = awake.Body.Instructions.Single(i => i.OpCode == OpCodes.Call && i.Operand is MethodReference mr && mr.Name == "DontDestroyOnLoad");
             var awakeIl = awake.Body.GetILProcessor();
-            var api = awakeIl.Create(OpCodes.Ldarg_0);
-            awakeIl.InsertAfter(persist, api);
-            awakeIl.InsertAfter(api, awakeIl.Create(OpCodes.Call, Import("ConfigureBackend")));
+            awakeIl.InsertAfter(persist, awakeIl.Create(OpCodes.Call, Import("EnsureInitialized")));
         }
         else
         {
@@ -243,19 +226,19 @@ public static class Program
         assembly.Write(output);
     }
 
-    public static void VerifyPatched(string path, int expected, bool verifyBackend = false)
+    public static void VerifyPatched(string path, int expected, string? startupHook = null)
     {
         using var assembly = AssemblyDefinition.ReadAssembly(path);
         var calls = assembly.MainModule.Types.SelectMany(t => t.Methods).Where(m => m.HasBody)
             .SelectMany(m => m.Body.Instructions).Count(i => i.OpCode == OpCodes.Call && i.Operand is MethodReference mr && mr.DeclaringType.FullName == "Swyf.CustomAI.Runtime");
         if (calls != expected) throw new InvalidOperationException("Could not verify the number of patch hooks.");
-        if (verifyBackend && Path.GetFileName(path) == "Assembly-CSharp.dll")
+        if (startupHook != null && Path.GetFileName(path) == "Assembly-CSharp.dll")
         {
             var api = assembly.MainModule.Types.Single(t => t.FullName == "KolkataApi");
             var awake = api.Methods.Single(m => m.Name == "Awake");
             if (awake.Body.Instructions.Count(i => i.OpCode == OpCodes.Call && i.Operand is MethodReference mr &&
-                mr.DeclaringType.FullName == "Swyf.CustomAI.Runtime" && mr.Name == "ConfigureBackend") != 1)
-                throw new InvalidOperationException("Could not verify the Kolkata startup configuration hook.");
+                mr.DeclaringType.FullName == "Swyf.CustomAI.Runtime" && mr.Name == startupHook) != 1)
+                throw new InvalidOperationException("Could not verify the mod initialization hook.");
         }
     }
 }
