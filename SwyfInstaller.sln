@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SwyfInstaller", "SwyfInstaller\SwyfInstaller.csproj", "{96425DFF-9AC0-457E-89A2-40B09C6DAF96}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SwyfInstaller.Gui", "SwyfInstaller.Gui\SwyfInstaller.Gui.csproj", "{8CCC7066-B113-4BB0-A19C-86D3427068E4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{96425DFF-9AC0-457E-89A2-40B09C6DAF96}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{96425DFF-9AC0-457E-89A2-40B09C6DAF96}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{96425DFF-9AC0-457E-89A2-40B09C6DAF96}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{96425DFF-9AC0-457E-89A2-40B09C6DAF96}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8CCC7066-B113-4BB0-A19C-86D3427068E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8CCC7066-B113-4BB0-A19C-86D3427068E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8CCC7066-B113-4BB0-A19C-86D3427068E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8CCC7066-B113-4BB0-A19C-86D3427068E4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
