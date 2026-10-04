@@ -23,7 +23,8 @@ dotnet build SwyfInstaller.sln -c Release
 dotnet SwyfInstaller/bin/Release/net10.0-windows/SwyfInstaller.dll selftest
 ```
 
-Single-file executables:
+Single-file executables (these exact names are also the release assets,
+which the in-app updater downloads and checksum-verifies):
 
 ```powershell
 dotnet publish SwyfInstaller/SwyfInstaller.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o SwyfInstaller/publish

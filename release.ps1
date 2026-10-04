@@ -37,25 +37,17 @@ Copy-Item "$root\SwyfInstaller\publish\SwyfInstaller.exe" "$root\SwyfInstaller.G
 Step "Packaging release assets"
 $artifacts = Join-Path $root "artifacts"
 if (Test-Path $artifacts) { Remove-Item $artifacts -Recurse -Force }
-New-Item -ItemType Directory -Force "$artifacts\gui" | Out-Null
-New-Item -ItemType Directory -Force "$artifacts\console" | Out-Null
-Copy-Item "$root\SwyfInstaller.Gui\publish\SwyfInstallerGui.exe" "$artifacts\gui\"
-Copy-Item "$root\SwyfInstaller.Gui\publish\SwyfInstaller.exe" "$artifacts\gui\"
-Copy-Item "$root\README.md" "$artifacts\gui\"
-Copy-Item "$root\LICENSE" "$artifacts\gui\"
-Copy-Item "$root\SwyfInstaller\publish\SwyfInstaller.exe" "$artifacts\console\"
-Copy-Item "$root\README.md" "$artifacts\console\"
-Copy-Item "$root\LICENSE" "$artifacts\console\"
-$guiZip = Join-Path $artifacts "SwyfInstallerGui-v$version-win-x64.zip"
-$conZip = Join-Path $artifacts "SwyfInstaller-v$version-win-x64.zip"
-Compress-Archive -Path "$artifacts\gui\*" -DestinationPath $guiZip -Force
-Compress-Archive -Path "$artifacts\console\*" -DestinationPath $conZip -Force
-$assets = @($guiZip, $conZip)
-foreach ($z in $assets) {
-    $hash = (Get-FileHash $z -Algorithm SHA256).Hash.ToLowerInvariant()
-    $shaFile = "$z.sha256"
-    "$hash  $(Split-Path $z -Leaf)" | Set-Content $shaFile -NoNewline
-    Write-Host "$(Split-Path $z -Leaf): $hash"
+New-Item -ItemType Directory -Force $artifacts | Out-Null
+$guiAsset = "SwyfInstallerGui-v$version-win-x64.exe"
+$conAsset = "SwyfInstaller-v$version-win-x64.exe"
+Copy-Item "$root\SwyfInstaller.Gui\publish\SwyfInstallerGui.exe" (Join-Path $artifacts $guiAsset) -Force
+Copy-Item "$root\SwyfInstaller\publish\SwyfInstaller.exe" (Join-Path $artifacts $conAsset) -Force
+$assets = @($guiAsset, $conAsset)
+foreach ($name in $assets) {
+    $path = Join-Path $artifacts $name
+    $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$hash  $name" | Set-Content "$path.sha256" -NoNewline
+    Write-Host "${name}: $hash"
 }
 
 if ($BuildOnly) { Write-Host ""; Write-Host "Build-only done: $artifacts"; return }
@@ -84,6 +76,8 @@ Console installer + basic WinForms UI for SWYF Custom AI.
 - Downloads the latest mod release and checks it before touching the game.
 - Update removes old package files, keeps settings and backups.
 - Verify re-checks installed files; uninstall runs the package uninstaller.
+- The app now updates itself: it checks this repo on startup and installs
+  new releases automatically (checksum-verified).
 
 Run SwyfInstallerGui.exe (needs SwyfInstaller.exe next to it), or use the console tool directly. See README for commands.
 "@
@@ -97,12 +91,12 @@ $releaseBody = @{
 $release = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/manifest-dex/SwyfInstaller/releases" `
     -Headers $headers -ContentType "application/json" -Body $releaseBody -TimeoutSec 60
 $uploadBase = ($release.upload_url -split '\{')[0]
-foreach ($z in $assets + @("$guiZip.sha256", "$conZip.sha256")) {
-    $name = Split-Path $z -Leaf
+foreach ($name in $assets + @("$guiAsset.sha256", "$conAsset.sha256")) {
+    $path = Join-Path $artifacts $name
     Write-Host "Uploading $name ..."
     $uri = $uploadBase + "?name=" + [uri]::EscapeDataString($name)
     Invoke-RestMethod -Method Post -Uri $uri -Headers $headers `
-        -ContentType "application/octet-stream" -InFile $z -TimeoutSec 900 | Out-Null
+        -ContentType "application/octet-stream" -InFile $path -TimeoutSec 900 | Out-Null
 }
 Write-Host ""
 Write-Host "Released: $($release.html_url)" -ForegroundColor Green

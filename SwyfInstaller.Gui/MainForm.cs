@@ -23,6 +23,8 @@ internal sealed class MainForm : Form
     private readonly CheckBox _fullBox = new() { Text = "Full uninstall", AutoSize = true };
     private readonly ToolStripStatusLabel _status = new() { Text = "Ready" };
     private readonly FlowLayoutPanel _buttons = new() { Dock = DockStyle.Fill, AutoSize = true };
+    private readonly Button _updateAppButton;
+    private SelfUpdateInfo _pendingUpdate;
     private bool _running;
 
     public MainForm()
@@ -56,9 +58,13 @@ internal sealed class MainForm : Form
 
         var mid = new Panel { Dock = DockStyle.Top, Height = 44 };
         _buttons.Controls.Add(MakeButton("Install", async () => await RunBackendAsync(BuildArgs("install"), "Download and install the latest release?", false)));
-        _buttons.Controls.Add(MakeButton("Update", async () => await RunBackendAsync(BuildArgs("update"), "Remove old files and update to the latest release?", false)));
+        _buttons.Controls.Add(MakeButton("Update mod", async () => await RunBackendAsync(BuildArgs("update"), "Remove old files and update to the latest release?", false)));
         _buttons.Controls.Add(MakeButton("Verify", async () => await RunBackendAsync(BuildArgs("verify"), null, false)));
         _buttons.Controls.Add(MakeButton("Uninstall", async () => await RunBackendAsync(BuildArgs("uninstall") + (_fullBox.Checked ? " --full" : ""), "Uninstall the mod" + (_fullBox.Checked ? " INCLUDING settings and backups" : "") + "?", false)));
+        _buttons.Controls.Add(MakeButton("Check for updates", async () => await CheckAppUpdatesAsync(manual: true)));
+        _updateAppButton = new Button { Text = "Update app", AutoSize = true, Visible = false };
+        _updateAppButton.Click += async (_, _) => await DownloadAndInstallAsync();
+        _buttons.Controls.Add(_updateAppButton);
         _buttons.Controls.Add(_patchBox);
         _buttons.Controls.Add(_fullBox);
         _buttons.Padding = new Padding(10, 6, 10, 0);
@@ -226,6 +232,82 @@ internal sealed class MainForm : Form
         {
             _running = false;
             SetButtons(true);
+        }
+    }
+
+    protected override async void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        await CheckAppUpdatesAsync(manual: false);
+    }
+
+    private async Task CheckAppUpdatesAsync(bool manual)
+    {
+        if (_running) return;
+        _status.Text = "Checking for app updates…";
+        try
+        {
+            var updater = new SelfUpdater();
+            var info = await updater.CheckForUpdatesAsync();
+            if (info == null)
+            {
+                _status.Text = "App is up to date (v" + SelfUpdater.CurrentVersion + ")";
+                if (manual) Log("App is up to date (v" + SelfUpdater.CurrentVersion + ").");
+                return;
+            }
+            _pendingUpdate = info;
+            _updateAppButton.Text = "Update app to v" + info.Version;
+            _updateAppButton.Visible = true;
+            _status.Text = "App update available: v" + info.Version;
+            Log("App update available: v" + info.Version + " — " + info.Name);
+            if (manual && !string.IsNullOrWhiteSpace(info.Notes))
+                Log(info.Notes.Length > 800 ? info.Notes.Substring(0, 800) + "…" : info.Notes);
+        }
+        catch (Exception ex)
+        {
+            _status.Text = "Update check failed";
+            if (manual)
+            {
+                Log("Update check failed: " + ex.Message);
+                MessageBox.Show(this, "Could not check for updates: " + ex.Message, "Update check",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+    }
+
+    private async Task DownloadAndInstallAsync()
+    {
+        var info = _pendingUpdate;
+        if (info == null || _running) return;
+        if (MessageBox.Show(this,
+                "Download and install app v" + info.Version + " now? The app will restart.",
+                "Confirm update", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            return;
+        _running = true;
+        SetButtons(false);
+        _updateAppButton.Enabled = false;
+        try
+        {
+            Log("Downloading app v" + info.Version + " …");
+            var updater = new SelfUpdater();
+            var progress = new Progress<double>(f =>
+            {
+                _status.Text = "Downloading update… " + (int)(f * 100) + "%";
+            });
+            string dir = await updater.DownloadAsync(info, progress, CancellationToken.None);
+            Log("Download verified. Restarting to apply…");
+            SelfUpdater.InstallAndRestart(dir, info.GuiName, info.BackName);
+            Application.Exit();
+        }
+        catch (Exception ex)
+        {
+            Log("Update failed: " + ex.Message);
+            _status.Text = "Update failed";
+            MessageBox.Show(this, "Update failed: " + ex.Message, "Update",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            _running = false;
+            SetButtons(true);
+            _updateAppButton.Enabled = true;
         }
     }
 
