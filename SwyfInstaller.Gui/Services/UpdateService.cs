@@ -1,10 +1,12 @@
 using System.Diagnostics;
+using System.IO;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-namespace SwyfInstaller.Gui;
+namespace SwyfInstaller.Gui.Services;
 
 internal sealed record SelfUpdateInfo(
     string Version,

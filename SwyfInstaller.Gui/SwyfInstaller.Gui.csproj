@@ -5,10 +5,15 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>disable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
     <AssemblyName>SwyfInstallerGui</AssemblyName>
     <Version>1.0.1</Version>
     <Description>Basic UI for the SWYF Custom AI installer.</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
 
 </Project>

@@ -87,7 +87,7 @@ internal static class Github
         return http;
     }
 
-    public static async Task DownloadAsync(HttpClient http, string url, string destPath, long expectedSize, CancellationToken ct)
+    public static async Task DownloadAsync(HttpClient http, string url, string destPath, long expectedSize, bool progressLines, CancellationToken ct)
     {
         using var res = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!res.IsSuccessStatusCode)
@@ -114,11 +114,13 @@ internal static class Github
                 {
                     lastPct = pct;
                     Console.Write($"\r  {done / 1048576.0:F1} / {total.Value / 1048576.0:F1} MB ({pct}%)");
+                    if (progressLines) Console.WriteLine("##PROGRESS " + pct);
                 }
             }
             else if (done % 1048576 < 81920)
             {
                 Console.Write($"\r  {done / 1048576.0:F1} MB");
+                if (progressLines) Console.WriteLine("##PROGRESS -1");
             }
         }
         Console.WriteLine();

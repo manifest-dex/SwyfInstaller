@@ -47,7 +47,7 @@ automates build, test, setup, tag and publish.
 
 ```
 SwyfInstaller/        console tool (download / verify / install / update / uninstall)
-SwyfInstaller.Gui/    WinForms front-end with self-updater
+SwyfInstaller.Gui/    WPF UI (LuaShareX-style) driving the console tool
 installer.iss         Inno Setup script (per-user setup exe)
 release.ps1           build, test, setup, tag and publish a release
 ```

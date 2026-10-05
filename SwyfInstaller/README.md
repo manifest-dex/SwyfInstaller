@@ -6,10 +6,15 @@ apps run on plain Windows x64 with no extra setup.
 
 ## GUI
 
-`SwyfInstaller.Gui` is a basic WinForms front-end for the console tool:
-game-folder box with Browse/Detect, repo box, Install / Update / Verify /
-Uninstall buttons, patch-step and full-uninstall options, and a live log.
-It shells out to `SwyfInstaller.exe`, so keep both files together:
+`SwyfInstaller.Gui` is a WPF front-end in the LuaShareX visual style
+(WPF-UI dark theme, MVVM with CommunityToolkit.Mvvm): header with version
+and update button, game-folder card with Browse/Detect, mod actions with a
+real progress bar and status line, self-update banner, and a collapsible
+details log. App startup checks for updates silently.
+
+It drives the console tool next to it (`SwyfInstaller.exe`) for
+install/update/verify/uninstall/detect, parsing its `##PROGRESS` lines for
+the progress bar (`--progress --window` are always passed):
 
 ```powershell
 dotnet publish SwyfInstaller.Gui/SwyfInstaller.Gui.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o SwyfInstaller.Gui/publish
@@ -28,8 +33,10 @@ dotnet SwyfInstaller/bin/Release/net10.0-windows/SwyfInstaller.dll update --yes
 ```
 
 Menu / commands: `install`, `update`, `verify`, `uninstall`, `latest`,
-`gamedir`, `selftest`. Common flags: `--gamedir PATH`, `--repo OWNER/REPO`,
-`--yes`, `--no-apply`, `--force`, `--full`.
+`gamedir`, `detect`, `selftest`. Common flags: `--gamedir PATH`,
+`--repo OWNER/REPO`, `--yes`, `--no-apply`, `--force`, `--full`,
+`--window` (run package scripts in their own console, for GUIs),
+`--progress` (emit `##PROGRESS n` lines for machine-readable progress).
 
 ## What update does
 

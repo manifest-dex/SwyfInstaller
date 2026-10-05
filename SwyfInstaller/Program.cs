@@ -29,6 +29,7 @@ internal static class Program
           --force          reinstall even when already on the latest tag
           --full           uninstall: also delete settings, session and backups
           --window         run package scripts in their own window (for GUIs)
+          --progress       emit ##PROGRESS lines for machine-readable progress
         """;
 
     public static async Task<int> Main(string[] args)
@@ -52,6 +53,7 @@ internal static class Program
         bool force = opts.ContainsKey("force");
         bool full = opts.ContainsKey("full");
         bool window = opts.ContainsKey("window");
+        bool progressLines = opts.ContainsKey("progress");
         opts.TryGetValue("gamedir", out string cliDir);
 
         using var cts = new CancellationTokenSource();
@@ -66,11 +68,11 @@ internal static class Program
                 case "install":
                     GameDir.Resolve(cfg, cliDir ?? "", interactive: false);
                     Store.SaveConfig(cfg);
-                    return await Ops.InstallFlowAsync(cfg, workDir, autoYes, applyPatch, window, cts.Token);
+                    return await Ops.InstallFlowAsync(cfg, workDir, autoYes, applyPatch, window, progressLines, cts.Token);
                 case "update":
                     GameDir.Resolve(cfg, cliDir ?? "", interactive: false);
                     Store.SaveConfig(cfg);
-                    return await Ops.UpdateFlowAsync(cfg, workDir, autoYes, applyPatch, force, window, cts.Token);
+                    return await Ops.UpdateFlowAsync(cfg, workDir, autoYes, applyPatch, force, window, progressLines, cts.Token);
                 case "verify":
                     GameDir.Resolve(cfg, cliDir ?? "", interactive: false);
                     Store.SaveConfig(cfg);
@@ -150,12 +152,12 @@ internal static class Program
                     case "1":
                         GameDir.Resolve(cfg, "", interactive: true);
                         Store.SaveConfig(cfg);
-                        await Ops.InstallFlowAsync(cfg, workDir, autoYes: false, applyPatch: true, visibleWindow: false, ct);
+                        await Ops.InstallFlowAsync(cfg, workDir, autoYes: false, applyPatch: true, visibleWindow: false, progressLines: false, ct);
                         break;
                     case "2":
                         GameDir.Resolve(cfg, "", interactive: true);
                         Store.SaveConfig(cfg);
-                        await Ops.UpdateFlowAsync(cfg, workDir, autoYes: false, applyPatch: true, force: false, visibleWindow: false, ct);
+                        await Ops.UpdateFlowAsync(cfg, workDir, autoYes: false, applyPatch: true, force: false, visibleWindow: false, progressLines: false, ct);
                         break;
                     case "3":
                         GameDir.Resolve(cfg, "", interactive: true);

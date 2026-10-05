@@ -33,7 +33,7 @@ internal static class Ops
         return await Github.GetLatestAsync(http, repo, ct);
     }
 
-    public static async Task<string> DownloadAndVerifyAsync(ReleaseInfo rel, string workDir, CancellationToken ct)
+    public static async Task<string> DownloadAndVerifyAsync(ReleaseInfo rel, string workDir, bool progressLines, CancellationToken ct)
     {
         Directory.CreateDirectory(workDir);
         string zipPath = Path.Combine(workDir, rel.ZipName);
@@ -41,9 +41,9 @@ internal static class Ops
 
         using var http = Github.CreateClient(TimeSpan.FromMinutes(10));
         Console.WriteLine("Downloading " + rel.ZipName + " ...");
-        await Github.DownloadAsync(http, rel.ZipUrl, zipPath, rel.ZipSize, ct);
+        await Github.DownloadAsync(http, rel.ZipUrl, zipPath, rel.ZipSize, progressLines, ct);
         Console.WriteLine("Downloading " + rel.ChecksumName + " ...");
-        await Github.DownloadAsync(http, rel.ChecksumUrl, shaPath, 0, ct);
+        await Github.DownloadAsync(http, rel.ChecksumUrl, shaPath, 0, false, ct);
 
         string expected = Store.ParseChecksumFile(await File.ReadAllTextAsync(shaPath, ct));
         string actual = Store.Sha256File(zipPath);
@@ -179,13 +179,13 @@ internal static class Ops
         return ans == "y" || ans == "yes";
     }
 
-    public static async Task<int> InstallFlowAsync(Store.AppConfig cfg, string workDir, bool autoYes, bool applyPatch, bool visibleWindow, CancellationToken ct)
+    public static async Task<int> InstallFlowAsync(Store.AppConfig cfg, string workDir, bool autoYes, bool applyPatch, bool visibleWindow, bool progressLines, CancellationToken ct)
     {
         WarnIfGameRunning();
         Console.WriteLine("Checking latest release of " + cfg.Repo + " ...");
         ReleaseInfo rel = await FetchLatestAsync(cfg.Repo, ct);
         Console.WriteLine("Latest: " + rel.Tag + " (" + rel.ZipName + ")");
-        string zip = await DownloadAndVerifyAsync(rel, workDir, ct);
+        string zip = await DownloadAndVerifyAsync(rel, workDir, progressLines, ct);
         Console.WriteLine("Extracting into game folder ...");
         var files = ExtractZip(zip, cfg.GameDir);
         RecordManifest(cfg.Repo, rel.Tag, cfg.GameDir, files);
@@ -201,7 +201,7 @@ internal static class Ops
         return 0;
     }
 
-    public static async Task<int> UpdateFlowAsync(Store.AppConfig cfg, string workDir, bool autoYes, bool applyPatch, bool force, bool visibleWindow, CancellationToken ct)
+    public static async Task<int> UpdateFlowAsync(Store.AppConfig cfg, string workDir, bool autoYes, bool applyPatch, bool force, bool visibleWindow, bool progressLines, CancellationToken ct)
     {
         WarnIfGameRunning();
         Console.WriteLine("Checking latest release of " + cfg.Repo + " ...");
@@ -213,7 +213,7 @@ internal static class Ops
             return 0;
         }
         if (!Confirm("Update to " + rel.Tag + "? Old package files are removed first (settings and backups are kept).", autoYes)) return 0;
-        string zip = await DownloadAndVerifyAsync(rel, workDir, ct);
+        string zip = await DownloadAndVerifyAsync(rel, workDir, progressLines, ct);
         Console.WriteLine("Removing old package files (settings and backups are kept) ...");
         RemovePackageFiles(cfg.GameDir);
         Console.WriteLine("Extracting " + rel.Tag + " ...");
