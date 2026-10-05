@@ -85,46 +85,71 @@ public static class GameDir
         throw new InvalidOperationException("That folder does not contain " + ExeName + ".");
     }
 
+    private static readonly (RegistryHive Hive, RegistryView View, string SubKey, string Value)[] SteamRegistryLocations =
+    {
+        (RegistryHive.CurrentUser, RegistryView.Registry64, @"SOFTWARE\Valve\Steam", "SteamPath"),
+        (RegistryHive.LocalMachine, RegistryView.Registry64, @"SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath"),
+        (RegistryHive.LocalMachine, RegistryView.Registry64, @"SOFTWARE\Valve\Steam", "InstallPath"),
+    };
+
+    private static readonly System.Text.RegularExpressions.Regex VdfPathRegex =
+        new("\"path\"\\s*\"([^\"]+)\"", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static string Normalize(string path)
+    {
+        try { return Path.GetFullPath(path.Trim().Replace('/', '\\')); }
+        catch { return path.Trim().Replace('/', '\\'); }
+    }
+
+    private static string Unescape(string s) => s.Replace(@"\\", @"\");
+
     private static List<string> SteamLibraries()
     {
         var libs = new List<string>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         void AddLib(string p)
         {
             try
             {
-                string full = Path.GetFullPath(p);
-                if (Directory.Exists(full) && seen.Add(full.ToUpperInvariant()))
+                string full = Normalize(p);
+                if (Directory.Exists(full) && seen.Add(full))
                     libs.Add(full);
             }
             catch { }
         }
-        try
+
+        // Steam roots from the registry, confirmed by steam.exe actually being there.
+        var roots = new List<string>();
+        foreach (var (hive, view, subKey, value) in SteamRegistryLocations)
         {
-            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam");
-            object val = key?.GetValue("SteamPath");
-            if (val is string steamPath)
+            try
             {
-                AddLib(steamPath);
-                string vdfGuess = "";
-                try { vdfGuess = Path.GetFullPath(Path.Combine(steamPath, "steamapps", "libraryfolders.vdf")); }
-                catch { }
-                if (vdfGuess != "" && File.Exists(vdfGuess))
+                using var baseKey = RegistryKey.OpenBaseKey(hive, view);
+                using var key = baseKey.OpenSubKey(subKey);
+                if (key?.GetValue(value) is not string raw || string.IsNullOrWhiteSpace(raw)) continue;
+                string root = Normalize(raw);
+                if (File.Exists(Path.Combine(root, "steam.exe")) && seen.Add(root))
                 {
-                    foreach (string line in File.ReadAllLines(vdfGuess))
-                    {
-                        string t = line.Trim();
-                        if (!t.StartsWith("\"path\"", StringComparison.OrdinalIgnoreCase)) continue;
-                        var parts = t.Split('"', StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length >= 2)
-                            AddLib(parts[^1].Replace(@"\\", @"\"));
-                    }
+                    roots.Add(root);
+                    libs.Add(root);
                 }
             }
+            catch { }
         }
-        catch { }
-        foreach (string drive in new[] { "C", "D", "E", "F" })
-            AddLib(drive + @":\Program Files (x86)\Steam");
+
+        // Every library across drives, from each root's libraryfolders.vdf.
+        foreach (string root in roots)
+        {
+            string vdf = Path.Combine(root, "steamapps", "libraryfolders.vdf");
+            if (!File.Exists(vdf)) continue;
+            string text;
+            try { text = File.ReadAllText(vdf); } catch { continue; }
+            foreach (System.Text.RegularExpressions.Match m in VdfPathRegex.Matches(text))
+            {
+                try { AddLib(Unescape(m.Groups[1].Value)); } catch { }
+            }
+        }
         return libs;
     }
 }

@@ -36,6 +36,8 @@ public partial class MainViewModel : ObservableObject
     {
         LoadSavedState();
         ValidateGameDir();
+        if (!IsGameFolderValid)
+            await AutoDetectAsync(silent: true);
         await CheckForUpdatesAsync(manual: false);
     }
 
@@ -139,30 +141,57 @@ public partial class MainViewModel : ObservableObject
     private async Task DetectGameDirAsync()
     {
         if (IsBusy) return;
-        IsBusy = true;
-        StatusMessage = "Looking for your Steam game folder…";
+        await AutoDetectAsync(silent: false);
+    }
+
+    private async Task AutoDetectAsync(bool silent)
+    {
+        if (!silent)
+        {
+            if (IsBusy) return;
+            IsBusy = true;
+        }
+        if (!silent) StatusMessage = "Looking for your Steam game folder…";
         try
         {
             var candidates = await Task.Run(() => SwyfInstaller.GameDir.FindCandidates());
             if (candidates.Count == 0)
             {
-                MessageBox.Show("No game folder detected. In Steam: right-click the game > Properties > Installed Files > Browse, then use the Browse button here instead.", "Not found",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-                StatusMessage = "No game folder found automatically — use Browse.";
+                if (!silent)
+                {
+                    MessageBox.Show("No game folder detected. In Steam: right-click the game > Properties > Installed Files > Browse, then use the Browse button here instead.", "Not found",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    StatusMessage = "No game folder found automatically — use Browse.";
+                }
+                else
+                {
+                    GameFolderStatus = "Couldn't find your game automatically — press Detect or Browse.";
+                }
                 return;
             }
             GameDir = candidates[0];
+            try
+            {
+                var cfg = SwyfInstaller.Store.LoadConfig();
+                cfg.GameDir = GameDir;
+                SwyfInstaller.Store.SaveConfig(cfg);
+            }
+            catch { }
             if (candidates.Count > 1)
                 AppendLog("Multiple installs found, using the first one. Others:\n- " + string.Join("\n- ", candidates.Skip(1)));
             AppendLog("Detected: " + GameDir);
-            StatusMessage = "Ready";
+            GameFolderStatus = "Found your game automatically — ready to install.";
+            if (!silent) StatusMessage = "Ready";
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Detect failed", MessageBoxButton.OK, MessageBoxImage.Error);
-            StatusMessage = "Detect failed — try Browse instead.";
+            if (!silent)
+            {
+                MessageBox.Show(ex.Message, "Detect failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusMessage = "Detect failed — try Browse instead.";
+            }
         }
-        finally { IsBusy = false; }
+        finally { if (!silent) IsBusy = false; }
     }
 
     [RelayCommand]
