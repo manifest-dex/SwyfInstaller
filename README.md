@@ -9,9 +9,10 @@ This repo holds everything: the easy installer app and the mod itself
 1. **Install this app** — download `SwyfInstaller-Setup-v*-win-x64.exe` from
    [Releases](https://github.com/manifest-dex/SwyfInstaller/releases) and run it
    (per-user, no admin needed). Or build from source below.
-2. **Find your game** — open the app, close the game, then press **Detect**
-   (or **Browse** to the folder Steam opens via
-   right-click game → Properties → Installed Files → Browse).
+2. **Find your game** — the app detects your Steam libraries on startup and
+   fills in the game folder itself. If it can't, press **Detect** or **Browse**
+   to the folder Steam opens via
+   right-click game → Properties → Installed Files → Browse.
 3. **Press Install, then play** — press **Install**, wait for "Done", start the
    game, host a lobby, and press **F8** (or AI Settings) to enter your provider
    details (API base URL, model ID, optional key) and **Save Settings**.
@@ -23,16 +24,11 @@ Guests don't need anything. New calls use your saved settings.
 | Button | What happens | Your data |
 |---|---|---|
 | Install | Downloads the latest verified mod and applies it | Kept |
-| Update mod | Removes old mod files, installs the latest | Settings, sign-in, backups kept |
-| Verify | Checks installed files for changes/missing files | Nothing changed |
+| Update | Removes old mod files, installs the latest | Settings, sign-in, backups kept |
 | Uninstall | Removes the mod, restores original game files | Settings and backups kept |
-| Copy log | Copies the details log for help requests | — |
 
 Downloads are SHA-256 verified against the published checksum **and**
 GitHub's asset digest before anything touches your game — a mismatch aborts.
-
-`Apply patch automatically` (on): recommended. Off means files are only
-downloaded; you must then run `Install Custom AI.cmd` in the game folder.
 
 ## After installing — F8 panel basics
 
@@ -51,8 +47,10 @@ downloaded; you must then run `Install Custom AI.cmd` in the game folder.
   Steam updates can remove the patch; Update repairs it.
 - **"Sorry, what were you saying?"** — the game's fallback: check base URL, model
   ID, key, structured-output support and speed in the F8 panel.
-- **Game folder error** — pick the folder containing `Scam With Your Friends.exe`.
-- **Something failed** — open Details log → **Copy log** and include it when
+- **Game folder error** — the app finds Steam via the registry and all library
+  folders automatically; if that fails, pick the folder containing
+  `Scam With Your Friends.exe`.
+- **Something failed** — open Details → **Copy log** and include it when
   asking for help. Keep `CustomAI/backup/`; never share `settings.json`.
 
 See [SwyfInstaller/README.md](SwyfInstaller/README.md) for console usage and
@@ -80,7 +78,7 @@ Setup installer (per-user, Start Menu + Programs list, no admin) with
 [Inno Setup 6](https://jrsoftware.org/isinfo.php):
 
 ```powershell
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.0 installer.iss
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=1.1.4 installer.iss
 ```
 
 `release.ps1 -Tag` automates build, test, setup, tag and publish.
@@ -88,8 +86,8 @@ Setup installer (per-user, Start Menu + Programs list, no admin) with
 ## Layout
 
 ```
-SwyfInstaller/        console tool (download / verify / install / update / uninstall)
-SwyfInstaller.Gui/    installer app UI (3-step wizard style) driving the console tool
+SwyfInstaller/        backend (download / verify / install / update / uninstall)
+SwyfInstaller.Gui/    basic installer app calling the backend directly
 custom-ai/            mod source (Bridge/Panel/Installer/tests, build.ps1)
 installer.iss         Inno Setup script (per-user setup exe)
 release.ps1           build, test, setup, tag and publish a release

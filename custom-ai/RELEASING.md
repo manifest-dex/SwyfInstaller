@@ -1,9 +1,10 @@
-# Releasing v1.1.0
+# Releasing (historical: standalone mod repo, now merged)
 
-> NOTE (merge): this file predates the monorepo merge. The mod now lives in
-> `custom-ai/` of `manifest-dex/SwyfInstaller`; `swyf-custom-ai-mod` is deleted.
-> Replace `--repo manifest-dex/swyf-custom-ai-mod` with
-> `--repo manifest-dex/SwyfInstaller` and run `custom-ai/release.ps1` from the repo root.
+> Current: the mod lives in `custom-ai/` of `manifest-dex/SwyfInstaller`;
+> `swyf-custom-ai-mod` is archived read-only with no releases.
+> Mod ZIPs are mirrored as `custom-ai-v*` releases on SwyfInstaller;
+> installer setups ship via the root `release.ps1 -Tag`. What follows is the
+> original v1.1.0 procedure, kept for reference.
 
 This is a manual local release. No commit or tag deploys SWYF or publishes a GitHub release automatically. The production service and ManifestDeX OAuth must be deployed and verified separately before announcing free hosted AI availability.
 
@@ -25,7 +26,7 @@ This builds the production bridge and x64 panel/installer, verifies bridge refer
 
 ## Tag and publish when ready
 
-`origin` is `https://github.com/manifest-dex/swyf-custom-ai-mod.git`. Check it before publishing. The local annotated `v1.1.0` tag is prepared at the release commit; do not force-move it. To include that commit in the remote main branch, push main yourself first:
+`origin` was `https://github.com/manifest-dex/swyf-custom-ai-mod.git` (now archived). The local annotated `v1.1.0` tag is prepared at the release commit; do not force-move it. To include that commit in the remote main branch, push main yourself first:
 
 ```powershell
 git status --short
@@ -37,7 +38,8 @@ git push origin main
 ./release.ps1 -Tag v1.1.0 -Draft -GameDir 'D:\SteamLibrary\steamapps\common\Scam With Your Friends Playtest'
 
 # After reviewing notes/assets and verifying production OAuth and a real game call:
-gh release edit v1.1.0 --repo manifest-dex/swyf-custom-ai-mod --draft=false
+# (Historical command; the old repo is archived and its releases removed.)
+# gh release edit v1.1.0 --repo manifest-dex/swyf-custom-ai-mod --draft=false
 ```
 
 Omit `-Draft` to let `release.ps1` publish after upload. It will never move a tag pointing at another commit. An upload failure leaves the newly created release as a draft; rerun from the same commit to retry. Existing notes/titles are preserved. Only ZIP/checksum assets are uploaded. A GitHub UI action cannot build the package on your PC.

@@ -6,13 +6,13 @@ apps run on plain Windows x64 with no extra setup.
 
 ## App (recommended)
 
-`SwyfInstaller.Gui` is a WPF app (WPF-UI dark theme, MVVM with
+`SwyfInstaller.Gui` is a basic WPF app (WPF-UI dark theme, MVVM with
 CommunityToolkit.Mvvm) that calls the backend (`SwyfInstaller/`) directly —
-no commands, no flags, no separate console window. 3-step layout: find the
-game (Browse/Detect with validation), install or manage the mod with a real
-progress bar and plain-language status, then play (F8 in-game). Includes a
-self-update banner, a troubleshooting help section, and a copyable details
-log. App startup checks for updates silently.
+no commands, no flags, no separate console window. One compact view: game
+folder (auto-detected on startup, Browse/Detect with validation),
+Install / Update / Uninstall buttons with a progress bar and plain-language
+status, an F8 hint, and a collapsible details log with Copy. The app checks
+for updates silently on startup and offers them in the header.
 
 ```powershell
 dotnet publish SwyfInstaller.Gui/SwyfInstaller.Gui.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o SwyfInstaller.Gui/publish
@@ -33,8 +33,9 @@ parameters (apart from `selftest`, a build check with no network/game).
 
 ## What update does
 
-1. Queries `releases/latest` on GitHub and picks
-   `SWYF-Custom-AI-*-win-x64.zip` plus its `.sha256` asset.
+1. Scans this repo's releases (newest first) for the latest
+   `SWYF-Custom-AI-*-win-x64.zip` plus its `.sha256` asset, skipping
+   setup-only releases.
 2. Downloads both, hashes the ZIP with SHA-256 and compares it against the
    published checksum file **and** the API asset digest. Any mismatch aborts
    before the game folder is touched.
@@ -49,5 +50,7 @@ parameters (apart from `selftest`, a build check with no network/game).
 OK / CHANGED / MISSING per file. `uninstall` runs the package's own
 uninstaller, then cleans leftover package files.
 
-The game folder is auto-detected from Steam libraries (folder containing
-`Scam With Your Friends.exe`) or picked in the app.
+The game folder is auto-detected on startup from Steam: registry roots
+(confirmed via `steam.exe`) plus every `libraryfolders.vdf` library
+(same approach as Element), looking for the folder containing
+`Scam With Your Friends.exe`. It can also be picked in the app.
