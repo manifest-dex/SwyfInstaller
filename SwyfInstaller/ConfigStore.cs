@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace SwyfInstaller;
 
-internal static class Store
+public static class Store
 {
     public sealed class AppConfig
     {

@@ -9,10 +9,6 @@ namespace SwyfInstaller.Gui.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
-    private const string DefaultRepo = "manifest-dex/SwyfInstaller";
-    private const string ExeName = "Scam With Your Friends.exe";
-
-    private readonly BackendRunner _backend = new();
     private readonly SelfUpdater _updater = new();
     private CancellationTokenSource _runCts;
 
@@ -47,6 +43,16 @@ public partial class MainViewModel : ObservableObject
     private string AppDataDir() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SwyfInstaller");
 
+    private static string WorkDir() => Path.Combine(Path.GetTempPath(), "SwyfInstaller");
+
+    private SwyfInstaller.Store.AppConfig LoadBackendConfig()
+    {
+        var cfg = SwyfInstaller.Store.LoadConfig();
+        if (GameDir.Trim() != "")
+            cfg.GameDir = GameDir.Trim();
+        return cfg;
+    }
+
     private void LoadSavedState()
     {
         try
@@ -73,14 +79,14 @@ public partial class MainViewModel : ObservableObject
         }
         try
         {
-            if (File.Exists(Path.Combine(dir, ExeName)))
+            if (SwyfInstaller.GameDir.IsGameDir(dir))
             {
-                GameFolderStatus = "Found " + ExeName + " — ready to install.";
+                GameFolderStatus = "Found Scam With Your Friends.exe — ready to install.";
                 IsGameFolderValid = true;
             }
             else
             {
-                GameFolderStatus = "That folder does not contain " + ExeName + ". Pick the folder Steam opens via Properties > Installed Files > Browse.";
+                GameFolderStatus = "That folder does not contain Scam With Your Friends.exe. Pick the folder Steam opens via Properties > Installed Files > Browse.";
                 IsGameFolderValid = false;
             }
         }
@@ -96,7 +102,7 @@ public partial class MainViewModel : ObservableObject
         ValidateGameDir();
         if (IsGameFolderValid) return true;
         MessageBox.Show(
-            "Pick a valid game folder first (the one containing \"" + ExeName + "\").\n\nTip: in Steam, right-click the game > Properties > Installed Files > Browse, then copy that path here or use Detect.",
+            "Pick a valid game folder first (the one containing \"Scam With Your Friends.exe\").\n\nTip: in Steam, right-click the game > Properties > Installed Files > Browse, then copy that path here or use Detect.",
             "Game folder needed for " + action,
             MessageBoxButton.OK, MessageBoxImage.Information);
         StatusMessage = "Waiting for a valid game folder before " + action.ToLowerInvariant() + ".";
@@ -115,12 +121,12 @@ public partial class MainViewModel : ObservableObject
     {
         var dlg = new Microsoft.Win32.OpenFolderDialog
         {
-            Title = "Select the game folder (contains " + ExeName + ")"
+            Title = "Select the game folder (contains Scam With Your Friends.exe)"
         };
         if (dlg.ShowDialog() != true) return;
-        if (!File.Exists(Path.Combine(dlg.FolderName, ExeName)))
+        if (!SwyfInstaller.GameDir.IsGameDir(dlg.FolderName))
         {
-            MessageBox.Show("That folder does not contain " + ExeName + ".\n\nIn Steam: right-click the game > Properties > Installed Files > Browse, then select that folder.",
+            MessageBox.Show("That folder does not contain Scam With Your Friends.exe.\n\nIn Steam: right-click the game > Properties > Installed Files > Browse, then select that folder.",
                 "Not a game folder",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             GameDir = dlg.FolderName;
@@ -138,8 +144,7 @@ public partial class MainViewModel : ObservableObject
         StatusMessage = "Looking for your Steam game folder…";
         try
         {
-            var lines = await _backend.RunCaptureAsync("detect");
-            var candidates = lines.Select(l => l.Trim()).Where(l => l != "").ToList();
+            var candidates = await Task.Run(() => SwyfInstaller.GameDir.FindCandidates());
             if (candidates.Count == 0)
             {
                 MessageBox.Show("No game folder detected. In Steam: right-click the game > Properties > Installed Files > Browse, then use the Browse button here instead.", "Not found",
@@ -161,14 +166,6 @@ public partial class MainViewModel : ObservableObject
         finally { IsBusy = false; }
     }
 
-    private string GameArgs(string command)
-    {
-        string args = command + " --yes --window --progress";
-        if (GameDir.Trim() != "") args += " --gamedir \"" + GameDir.Trim() + "\"";
-        args += " --repo " + DefaultRepo;
-        return args;
-    }
-
     [RelayCommand]
     private async Task InstallAsync()
     {
@@ -177,9 +174,10 @@ public partial class MainViewModel : ObservableObject
         if (MessageBox.Show("Download the latest mod and set it up in your game folder?\n\nYour provider settings and backups are kept if you reinstall later.",
                 "Install latest mod",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        string args = GameArgs("install");
-        if (!RunPatchStep) args += " --no-apply";
-        await RunModAsync(args, "Installing… downloading the latest mod, then applying it to your game.");
+        bool patch = RunPatchStep;
+        await RunOpAsync((log, bar, ct) =>
+            SwyfInstaller.Ops.InstallFlowAsync(LoadBackendConfig(), WorkDir(), autoYes: true, applyPatch: patch, visibleWindow: true, log, bar, ct),
+            "Installing… downloading the latest mod, then applying it to your game.");
     }
 
     [RelayCommand]
@@ -190,9 +188,10 @@ public partial class MainViewModel : ObservableObject
         if (MessageBox.Show("Update to the latest mod?\n\nOld mod files are removed first. Your settings, sign-in session and backups are always kept.",
                 "Update mod",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        string args = GameArgs("update");
-        if (!RunPatchStep) args += " --no-apply";
-        await RunModAsync(args, "Updating… removing old files, downloading the latest mod.");
+        bool patch = RunPatchStep;
+        await RunOpAsync((log, bar, ct) =>
+            SwyfInstaller.Ops.UpdateFlowAsync(LoadBackendConfig(), WorkDir(), autoYes: true, applyPatch: patch, force: false, visibleWindow: true, log, bar, ct),
+            "Updating… removing old files, downloading the latest mod.");
     }
 
     [RelayCommand]
@@ -200,7 +199,10 @@ public partial class MainViewModel : ObservableObject
     {
         if (IsBusy) return;
         if (!RequireGameFolder("Verify")) return;
-        await RunModAsync(GameArgs("verify"), "Verifying… checking your installed files for changes.");
+        var cfg = LoadBackendConfig();
+        await RunOpAsync((log, _, _) =>
+            Task.FromResult(SwyfInstaller.Ops.VerifyFlow(cfg, log)),
+            "Verifying… checking your installed files for changes.");
     }
 
     [RelayCommand]
@@ -211,7 +213,10 @@ public partial class MainViewModel : ObservableObject
         if (MessageBox.Show("Remove the mod from your game?\n\nYour settings and backups are kept, so reinstalling later is easy.",
                 "Uninstall mod",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-        await RunModAsync(GameArgs("uninstall"), "Uninstalling… restoring the original game files.");
+        var cfg = LoadBackendConfig();
+        await RunOpAsync((log, _, _) =>
+            Task.FromResult(SwyfInstaller.Ops.UninstallFlow(cfg, autoYes: true, full: false, visibleWindow: true, log)),
+            "Uninstalling… restoring the original game files.");
     }
 
     [RelayCommand]
@@ -239,7 +244,6 @@ public partial class MainViewModel : ObservableObject
     private void CancelRun()
     {
         try { _runCts?.Cancel(); } catch { }
-        _backend.Kill();
     }
 
     private static readonly string[] SummaryPrefixes =
@@ -262,7 +266,7 @@ public partial class MainViewModel : ObservableObject
         return code == 0 ? "Done. Start the game and press F8 to set up your AI provider." : "Something failed (exit " + code + ") — check the details log below or press Copy log when asking for help.";
     }
 
-    private async Task RunModAsync(string args, string phase)
+    private async Task RunOpAsync(Func<IProgress<string>, IProgress<double>, CancellationToken, Task<int>> op, string phase)
     {
         if (IsBusy) return;
         IsBusy = true;
@@ -279,7 +283,7 @@ public partial class MainViewModel : ObservableObject
         });
         try
         {
-            int code = await _backend.RunAsync(args, log, bar, _runCts.Token);
+            int code = await op(log, bar, _runCts.Token);
             StatusMessage = FriendlyStatus(lines, code);
             LoadSavedState();
             ValidateGameDir();

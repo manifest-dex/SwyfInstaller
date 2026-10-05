@@ -3,7 +3,7 @@ using Microsoft.Win32;
 
 namespace SwyfInstaller;
 
-internal static class GameDir
+public static class GameDir
 {
     public const string ExeName = "Scam With Your Friends.exe";
     public const string FolderName = "Scam With Your Friends Playtest";
@@ -42,15 +42,8 @@ internal static class GameDir
         catch { return false; }
     }
 
-    public static string Resolve(Store.AppConfig cfg, string cliOverride, bool interactive)
+    public static string Resolve(Store.AppConfig cfg, bool interactive)
     {
-        if (!string.IsNullOrWhiteSpace(cliOverride) && IsGameDir(cliOverride))
-        {
-            cfg.GameDir = Path.GetFullPath(cliOverride);
-            return cfg.GameDir;
-        }
-        if (!string.IsNullOrWhiteSpace(cliOverride))
-            Console.WriteLine("Given --gamedir is not a game folder (missing " + ExeName + ").");
         if (IsGameDir(cfg.GameDir)) return cfg.GameDir;
 
         var candidates = FindCandidates();
@@ -80,7 +73,7 @@ internal static class GameDir
             throw new InvalidOperationException("No valid game folder selected.");
         }
         if (!interactive)
-            throw new InvalidOperationException("Game folder not found. Pass --gamedir <path> (folder containing " + ExeName + ").");
+            throw new InvalidOperationException("Game folder not found (missing " + ExeName + ").");
         Console.WriteLine("Could not find the game automatically.");
         Console.Write("Paste the game folder path (Steam > Properties > Installed Files > Browse): ");
         string typed = (Console.ReadLine() ?? "").Trim().Trim('"');
