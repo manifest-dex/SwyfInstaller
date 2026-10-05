@@ -1,20 +1,64 @@
-# SwyfInstaller + SWYF Custom AI (monorepo)
+# SWYF Custom AI — Installer + Mod
 
-Console installer + WPF UI + the [SWYF Custom AI](custom-ai/README.md) mod source,
-all in this repo. `swyf-custom-ai-mod` was merged into `custom-ai/` and deleted.
+Use your own OpenAI-compatible AI provider in **Scam With Your Friends Playtest**.
+This repo holds everything: the easy installer app and the mod itself
+(`custom-ai/`). Only the **lobby host** needs the mod — guests join normally.
 
-- Downloads the latest `SWYF-Custom-AI-*-win-x64.zip` GitHub release.
-- Verifies the download against the published checksum **and** the GitHub
-  asset digest before touching the game (mismatch = abort).
-- Update removes old package files but always keeps `settings.json`,
-  session, `member-keys/` and `CustomAI/backup/`.
-- `verify` re-checks installed files for changes; `uninstall` runs the
-  package's own uninstaller and cleans up leftovers.
-- Game folder auto-detection via Steam libraries (or set manually).
+## Get started in 3 steps
 
-See [SwyfInstaller/README.md](SwyfInstaller/README.md) for full usage.
+1. **Install this app** — download `SwyfInstaller-Setup-v*-win-x64.exe` from
+   [Releases](https://github.com/manifest-dex/SwyfInstaller/releases) and run it
+   (per-user, no admin needed). Or build from source below.
+2. **Find your game** — open the app, close the game, then press **Detect**
+   (or **Browse** to the folder Steam opens via
+   right-click game → Properties → Installed Files → Browse).
+3. **Press Install, then play** — press **Install**, wait for "Done", start the
+   game, host a lobby, and press **F8** (or AI Settings) to enter your provider
+   details (API base URL, model ID, optional key) and **Save Settings**.
 
-## Build
+Guests don't need anything. New calls use your saved settings.
+
+## What the buttons do
+
+| Button | What happens | Your data |
+|---|---|---|
+| Install | Downloads the latest verified mod and applies it | Kept |
+| Update mod | Removes old mod files, installs the latest | Settings, sign-in, backups kept |
+| Verify | Checks installed files for changes/missing files | Nothing changed |
+| Uninstall | Removes the mod, restores original game files | Settings and backups kept |
+| Copy log | Copies the details log for help requests | — |
+
+Downloads are SHA-256 verified against the published checksum **and**
+GitHub's asset digest before anything touches your game — a mismatch aborts.
+
+`Apply patch automatically` (on): recommended. Off means files are only
+downloaded; you must then run `Install Custom AI.cmd` in the game folder.
+
+## After installing — F8 panel basics
+
+- Base URL example (local server): `http://127.0.0.1:1234/v1` — do not append
+  `/chat/completions` yourself.
+- Leave the key blank for keyless local servers. A blank key field keeps a
+  saved key; delete it explicitly to remove it.
+- **Test Connection** checks the form without saving. **Save Settings** applies it.
+- Calls have a 15-second deadline; slow models trigger the game's fallback line.
+- Menu shows model + status: Not tested yet / Connecting / Last request
+  succeeded / Connection error. Details: [custom-ai/README.md](custom-ai/README.md).
+
+## Troubleshooting
+
+- **F8 does nothing** — close the game, press **Update mod**, start the game again.
+  Steam updates can remove the patch; Update repairs it.
+- **"Sorry, what were you saying?"** — the game's fallback: check base URL, model
+  ID, key, structured-output support and speed in the F8 panel.
+- **Game folder error** — pick the folder containing `Scam With Your Friends.exe`.
+- **Something failed** — open Details log → **Copy log** and include it when
+  asking for help. Keep `CustomAI/backup/`; never share `settings.json`.
+
+See [SwyfInstaller/README.md](SwyfInstaller/README.md) for console usage and
+[custom-ai/README.md](custom-ai/README.md) for full mod docs.
+
+## Build from source
 
 Requires .NET 10 SDK, Windows x64.
 
@@ -39,23 +83,20 @@ Setup installer (per-user, Start Menu + Programs list, no admin) with
 & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.0 installer.iss
 ```
 
-Releases ship only `SwyfInstaller-Setup-v*-win-x64.exe` (+ `.sha256`),
-which the in-app updater downloads and runs silently. `release.ps1 -Tag`
-automates build, test, setup, tag and publish.
+`release.ps1 -Tag` automates build, test, setup, tag and publish.
 
 ## Layout
 
 ```
 SwyfInstaller/        console tool (download / verify / install / update / uninstall)
-SwyfInstaller.Gui/    WPF UI (LuaShareX-style) driving the console tool
-custom-ai/            SWYF Custom AI mod source (Bridge/Panel/Installer/tests, build.ps1)
+SwyfInstaller.Gui/    installer app UI (3-step wizard style) driving the console tool
+custom-ai/            mod source (Bridge/Panel/Installer/tests, build.ps1)
 installer.iss         Inno Setup script (per-user setup exe)
 release.ps1           build, test, setup, tag and publish a release
 ```
 
-Mod releases (`SWYF-Custom-AI-*-win-x64.zip` + `.sha256`) are now published
-from this repo. The installer defaults to `manifest-dex/SwyfInstaller`;
-old `swyf-custom-ai-mod` configs auto-migrate on load. Build the mod ZIP with:
+Mod releases (`SWYF-Custom-AI-*-win-x64.zip` + `.sha256`) are published from
+this repo. Build the mod ZIP with:
 
 ```powershell
 ./custom-ai/build.ps1 -GameDir '<your-game-folder>'

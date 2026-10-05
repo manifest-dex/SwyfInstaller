@@ -17,8 +17,10 @@ public partial class MainViewModel : ObservableObject
     private CancellationTokenSource _runCts;
 
     [ObservableProperty] private string _gameDir = "";
+    [ObservableProperty] private string _gameFolderStatus = "Step 1: pick your game folder to begin.";
+    [ObservableProperty] private bool _isGameFolderValid;
     [ObservableProperty] private string _installedTag = "";
-    [ObservableProperty] private string _statusMessage = "Ready";
+    [ObservableProperty] private string _statusMessage = "Ready. Pick Install to download the latest mod.";
     [ObservableProperty] private double _progress;
     [ObservableProperty] private bool _isProgressIndeterminate;
     [ObservableProperty] private bool _isBusy;
@@ -28,15 +30,18 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _updateButtonText = "Update app";
     private SelfUpdateInfo _pendingUpdate;
 
-    public string InstalledLabel => InstalledTag == "" ? "Mod status unknown" : "Installed mod: " + InstalledTag;
+    public string InstalledLabel => InstalledTag == "" ? "Mod status unknown — install to find out" : "Installed mod: " + InstalledTag;
     public string AppVersion => "v" + SelfUpdater.CurrentVersion;
 
     partial void OnInstalledTagChanged(string value) => OnPropertyChanged(nameof(InstalledLabel));
 
+    partial void OnGameDirChanged(string value) => ValidateGameDir();
+
     public async Task InitializeAsync()
     {
         LoadSavedState();
-        await CheckForUpdatesAsync();
+        ValidateGameDir();
+        await CheckForUpdatesAsync(manual: false);
     }
 
     private string AppDataDir() =>
@@ -57,6 +62,47 @@ public partial class MainViewModel : ObservableObject
         catch { }
     }
 
+    private void ValidateGameDir()
+    {
+        string dir = GameDir?.Trim() ?? "";
+        if (dir == "")
+        {
+            GameFolderStatus = "Step 1: pick your game folder to begin (Browse or Detect).";
+            IsGameFolderValid = false;
+            return;
+        }
+        try
+        {
+            if (File.Exists(Path.Combine(dir, ExeName)))
+            {
+                GameFolderStatus = "Found " + ExeName + " — ready to install.";
+                IsGameFolderValid = true;
+            }
+            else
+            {
+                GameFolderStatus = "That folder does not contain " + ExeName + ". Pick the folder Steam opens via Properties > Installed Files > Browse.";
+                IsGameFolderValid = false;
+            }
+        }
+        catch
+        {
+            GameFolderStatus = "That folder path looks invalid. Try Browse again.";
+            IsGameFolderValid = false;
+        }
+    }
+
+    private bool RequireGameFolder(string action)
+    {
+        ValidateGameDir();
+        if (IsGameFolderValid) return true;
+        MessageBox.Show(
+            "Pick a valid game folder first (the one containing \"" + ExeName + "\").\n\nTip: in Steam, right-click the game > Properties > Installed Files > Browse, then copy that path here or use Detect.",
+            "Game folder needed for " + action,
+            MessageBoxButton.OK, MessageBoxImage.Information);
+        StatusMessage = "Waiting for a valid game folder before " + action.ToLowerInvariant() + ".";
+        return false;
+    }
+
     private void AppendLog(string line)
     {
         LogText += line + "\n";
@@ -74,11 +120,14 @@ public partial class MainViewModel : ObservableObject
         if (dlg.ShowDialog() != true) return;
         if (!File.Exists(Path.Combine(dlg.FolderName, ExeName)))
         {
-            MessageBox.Show("That folder does not contain " + ExeName + ".", "Not a game folder",
+            MessageBox.Show("That folder does not contain " + ExeName + ".\n\nIn Steam: right-click the game > Properties > Installed Files > Browse, then select that folder.",
+                "Not a game folder",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
+            GameDir = dlg.FolderName;
             return;
         }
         GameDir = dlg.FolderName;
+        AppendLog("Game folder: " + GameDir);
     }
 
     [RelayCommand]
@@ -86,25 +135,28 @@ public partial class MainViewModel : ObservableObject
     {
         if (IsBusy) return;
         IsBusy = true;
-        StatusMessage = "Detecting game folder…";
+        StatusMessage = "Looking for your Steam game folder…";
         try
         {
             var lines = await _backend.RunCaptureAsync("detect");
-            string first = lines.FirstOrDefault(l => l.Trim() != "");
-            if (first == "")
+            var candidates = lines.Select(l => l.Trim()).Where(l => l != "").ToList();
+            if (candidates.Count == 0)
             {
-                MessageBox.Show("No game folder detected. Use Browse instead.", "Not found",
+                MessageBox.Show("No game folder detected. In Steam: right-click the game > Properties > Installed Files > Browse, then use the Browse button here instead.", "Not found",
                     MessageBoxButton.OK, MessageBoxImage.Information);
+                StatusMessage = "No game folder found automatically — use Browse.";
                 return;
             }
-            GameDir = first.Trim();
+            GameDir = candidates[0];
+            if (candidates.Count > 1)
+                AppendLog("Multiple installs found, using the first one. Others:\n- " + string.Join("\n- ", candidates.Skip(1)));
             AppendLog("Detected: " + GameDir);
             StatusMessage = "Ready";
         }
         catch (Exception ex)
         {
             MessageBox.Show(ex.Message, "Detect failed", MessageBoxButton.OK, MessageBoxImage.Error);
-            StatusMessage = "Ready";
+            StatusMessage = "Detect failed — try Browse instead.";
         }
         finally { IsBusy = false; }
     }
@@ -121,38 +173,66 @@ public partial class MainViewModel : ObservableObject
     private async Task InstallAsync()
     {
         if (IsBusy) return;
-        if (MessageBox.Show("Download and install the latest release?", "Confirm install",
+        if (!RequireGameFolder("Install")) return;
+        if (MessageBox.Show("Download the latest mod and set it up in your game folder?\n\nYour provider settings and backups are kept if you reinstall later.",
+                "Install latest mod",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         string args = GameArgs("install");
         if (!RunPatchStep) args += " --no-apply";
-        await RunModAsync(args, "Installing…");
+        await RunModAsync(args, "Installing… downloading the latest mod, then applying it to your game.");
     }
 
     [RelayCommand]
     private async Task UpdateModAsync()
     {
         if (IsBusy) return;
-        if (MessageBox.Show("Remove old files and update to the latest release?", "Confirm update",
+        if (!RequireGameFolder("Update")) return;
+        if (MessageBox.Show("Update to the latest mod?\n\nOld mod files are removed first. Your settings, sign-in session and backups are always kept.",
+                "Update mod",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         string args = GameArgs("update");
         if (!RunPatchStep) args += " --no-apply";
-        await RunModAsync(args, "Updating…");
+        await RunModAsync(args, "Updating… removing old files, downloading the latest mod.");
     }
 
     [RelayCommand]
     private async Task VerifyAsync()
     {
         if (IsBusy) return;
-        await RunModAsync(GameArgs("verify"), "Verifying…");
+        if (!RequireGameFolder("Verify")) return;
+        await RunModAsync(GameArgs("verify"), "Verifying… checking your installed files for changes.");
     }
 
     [RelayCommand]
     private async Task UninstallAsync()
     {
         if (IsBusy) return;
-        if (MessageBox.Show("Uninstall the mod? Settings and backups are kept.", "Confirm uninstall",
+        if (!RequireGameFolder("Uninstall")) return;
+        if (MessageBox.Show("Remove the mod from your game?\n\nYour settings and backups are kept, so reinstalling later is easy.",
+                "Uninstall mod",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-        await RunModAsync(GameArgs("uninstall"), "Uninstalling…");
+        await RunModAsync(GameArgs("uninstall"), "Uninstalling… restoring the original game files.");
+    }
+
+    [RelayCommand]
+    private void CopyLog()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(LogText))
+            {
+                StatusMessage = "Nothing in the log to copy yet.";
+                return;
+            }
+            Clipboard.SetText(LogText);
+            StatusMessage = "Details log copied — paste it when asking for help.";
+            AppendLog("Log copied to clipboard.");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Could not copy the log: " + ex.Message, "Copy failed",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     [RelayCommand]
@@ -173,13 +253,13 @@ public partial class MainViewModel : ObservableObject
         for (int i = lines.Count - 1; i >= 0; i--)
         {
             string t = lines[i].Trim();
-            if (t.Contains("problem(s)")) return t;
+            if (t.Contains("problem(s)")) return t + " Use Update to repair, or ask for help with the details log below.";
             foreach (string p in SummaryPrefixes)
             {
-                if (t.StartsWith(p, StringComparison.Ordinal)) return t;
+                if (t.StartsWith(p, StringComparison.Ordinal)) return t + " You can close this window and start the game.";
             }
         }
-        return code == 0 ? "Done" : "Failed (exit " + code + ")";
+        return code == 0 ? "Done. Start the game and press F8 to set up your AI provider." : "Something failed (exit " + code + ") — check the details log below or press Copy log when asking for help.";
     }
 
     private async Task RunModAsync(string args, string phase)
@@ -202,15 +282,16 @@ public partial class MainViewModel : ObservableObject
             int code = await _backend.RunAsync(args, log, bar, _runCts.Token);
             StatusMessage = FriendlyStatus(lines, code);
             LoadSavedState();
+            ValidateGameDir();
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = "Cancelled";
+            StatusMessage = "Cancelled. Nothing was half-installed — run it again when ready.";
             AppendLog("Cancelled.");
         }
         catch (Exception ex)
         {
-            StatusMessage = "Failed";
+            StatusMessage = "Failed: " + ex.Message;
             AppendLog("ERROR: " + ex.Message);
             MessageBox.Show(ex.Message, "Failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
@@ -238,7 +319,7 @@ public partial class MainViewModel : ObservableObject
             {
                 if (manual)
                 {
-                    StatusMessage = "App is up to date (v" + SelfUpdater.CurrentVersion + ")";
+                    StatusMessage = "This installer app is up to date (v" + SelfUpdater.CurrentVersion + ").";
                     AppendLog("App is up to date (v" + SelfUpdater.CurrentVersion + ").");
                 }
                 return;
@@ -246,7 +327,7 @@ public partial class MainViewModel : ObservableObject
             _pendingUpdate = info;
             UpdateButtonText = "Update app to v" + info.Version;
             UpdateAvailable = true;
-            StatusMessage = "App update available: v" + info.Version;
+            StatusMessage = "Installer app update available: v" + info.Version + " — press the update button above.";
             AppendLog("App update available: v" + info.Version + " — " + info.Name);
             if (manual && !string.IsNullOrWhiteSpace(info.Notes))
                 AppendLog(info.Notes.Length > 800 ? info.Notes.Substring(0, 800) + "…" : info.Notes);
@@ -255,7 +336,7 @@ public partial class MainViewModel : ObservableObject
         {
             if (manual)
             {
-                StatusMessage = "Update check failed";
+                StatusMessage = "Update check failed — you can still install the mod below.";
                 AppendLog("Update check failed: " + ex.Message);
                 MessageBox.Show("Could not check for updates: " + ex.Message, "Update check",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -268,8 +349,9 @@ public partial class MainViewModel : ObservableObject
     {
         var info = _pendingUpdate;
         if (info == null || IsBusy) return;
-        if (MessageBox.Show("Download and install app v" + info.Version + " now? The app will restart.",
-                "Confirm update", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (MessageBox.Show("Download and install installer app v" + info.Version + " now? The app will restart.",
+                "Update installer app",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         IsBusy = true;
         IsProgressIndeterminate = false;
         Progress = 0;
@@ -279,7 +361,7 @@ public partial class MainViewModel : ObservableObject
             var prog = new Progress<double>(f =>
             {
                 Progress = f;
-                StatusMessage = "Downloading update… " + (int)(f * 100) + "%";
+                StatusMessage = "Downloading app update… " + (int)(f * 100) + "%";
             });
             string dir = await _updater.DownloadAsync(info, prog, CancellationToken.None);
             AppendLog("Download verified. Restarting to apply…");
@@ -288,7 +370,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = "Update failed";
+            StatusMessage = "App update failed: " + ex.Message;
             AppendLog("Update failed: " + ex.Message);
             MessageBox.Show("Update failed: " + ex.Message, "Update",
                 MessageBoxButton.OK, MessageBoxImage.Error);
