@@ -47,8 +47,6 @@
                             <ui:Button Grid.Column="1" Content="Browse…" Command="{Binding BrowseGameDirCommand}" Margin="0,0,8,0" Padding="12,6" />
                             <ui:Button Grid.Column="2" Content="Detect" Command="{Binding DetectGameDirCommand}" Padding="12,6" />
                         </Grid>
-                        <TextBlock Text="Source repo" FontSize="13" FontWeight="SemiBold" Margin="0,12,0,8" />
-                        <ui:TextBox Text="{Binding Repo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                 </Border>
 
@@ -66,8 +64,6 @@
                         </WrapPanel>
                         <WrapPanel Orientation="Horizontal" Margin="0,2,0,0">
                             <CheckBox Content="Run patch step" IsChecked="{Binding RunPatchStep, Mode=TwoWay}" Margin="0,0,16,4" Foreground="#9ca3af" />
-                            <CheckBox Content="Force reinstall" IsChecked="{Binding ForceReinstall, Mode=TwoWay}" Margin="0,0,16,4" Foreground="#9ca3af" />
-                            <CheckBox Content="Full uninstall" IsChecked="{Binding FullUninstall, Mode=TwoWay}" Margin="0,0,16,4" Foreground="#9ca3af" />
                         </WrapPanel>
                         <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress, Mode=OneWay}" Height="6" Margin="0,10,0,6"
                                      IsIndeterminate="{Binding IsProgressIndeterminate}"

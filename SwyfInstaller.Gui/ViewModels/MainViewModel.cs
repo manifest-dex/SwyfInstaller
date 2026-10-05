@@ -17,15 +17,12 @@ public partial class MainViewModel : ObservableObject
     private CancellationTokenSource _runCts;
 
     [ObservableProperty] private string _gameDir = "";
-    [ObservableProperty] private string _repo = DefaultRepo;
     [ObservableProperty] private string _installedTag = "";
     [ObservableProperty] private string _statusMessage = "Ready";
     [ObservableProperty] private double _progress;
     [ObservableProperty] private bool _isProgressIndeterminate;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private bool _runPatchStep = true;
-    [ObservableProperty] private bool _forceReinstall;
-    [ObservableProperty] private bool _fullUninstall;
     [ObservableProperty] private string _logText = "";
     [ObservableProperty] private bool _updateAvailable;
     [ObservableProperty] private string _updateButtonText = "Update app";
@@ -54,8 +51,6 @@ public partial class MainViewModel : ObservableObject
             using var doc = JsonDocument.Parse(File.ReadAllText(cfg));
             if (doc.RootElement.TryGetProperty("GameDir", out var g) && g.GetString() is string gd && gd != "")
                 GameDir = gd;
-            if (doc.RootElement.TryGetProperty("Repo", out var r) && r.GetString() is string rp && rp != "")
-                Repo = rp;
             if (doc.RootElement.TryGetProperty("InstalledTag", out var t) && t.GetString() is string tag)
                 InstalledTag = tag;
         }
@@ -118,7 +113,7 @@ public partial class MainViewModel : ObservableObject
     {
         string args = command + " --yes --window --progress";
         if (GameDir.Trim() != "") args += " --gamedir \"" + GameDir.Trim() + "\"";
-        if (Repo.Trim() != "") args += " --repo " + Repo.Trim();
+        args += " --repo " + DefaultRepo;
         return args;
     }
 
@@ -141,7 +136,6 @@ public partial class MainViewModel : ObservableObject
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         string args = GameArgs("update");
         if (!RunPatchStep) args += " --no-apply";
-        if (ForceReinstall) args += " --force";
         await RunModAsync(args, "Updating…");
     }
 
@@ -156,12 +150,9 @@ public partial class MainViewModel : ObservableObject
     private async Task UninstallAsync()
     {
         if (IsBusy) return;
-        string extra = FullUninstall ? " INCLUDING settings and backups" : "";
-        if (MessageBox.Show("Uninstall the mod" + extra + "?", "Confirm uninstall",
+        if (MessageBox.Show("Uninstall the mod? Settings and backups are kept.", "Confirm uninstall",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-        string args = GameArgs("uninstall");
-        if (FullUninstall) args += " --full";
-        await RunModAsync(args, "Uninstalling…");
+        await RunModAsync(GameArgs("uninstall"), "Uninstalling…");
     }
 
     [RelayCommand]
@@ -169,6 +160,26 @@ public partial class MainViewModel : ObservableObject
     {
         try { _runCts?.Cancel(); } catch { }
         _backend.Kill();
+    }
+
+    private static readonly string[] SummaryPrefixes =
+    {
+        "OK:", "Installed ", "Updated to ", "Already up to date",
+        "Uninstall done", "Full uninstall done.", "Download verified."
+    };
+
+    private static string FriendlyStatus(List<string> lines, int code)
+    {
+        for (int i = lines.Count - 1; i >= 0; i--)
+        {
+            string t = lines[i].Trim();
+            if (t.Contains("problem(s)")) return t;
+            foreach (string p in SummaryPrefixes)
+            {
+                if (t.StartsWith(p, StringComparison.Ordinal)) return t;
+            }
+        }
+        return code == 0 ? "Done" : "Failed (exit " + code + ")";
     }
 
     private async Task RunModAsync(string args, string phase)
@@ -179,7 +190,8 @@ public partial class MainViewModel : ObservableObject
         IsProgressIndeterminate = true;
         Progress = 0;
         StatusMessage = phase;
-        var log = new Progress<string>(line => AppendLog(line));
+        var lines = new List<string>();
+        var log = new Progress<string>(line => { lines.Add(line); AppendLog(line); });
         var bar = new Progress<double>(v =>
         {
             if (v < 0) IsProgressIndeterminate = true;
@@ -188,7 +200,7 @@ public partial class MainViewModel : ObservableObject
         try
         {
             int code = await _backend.RunAsync(args, log, bar, _runCts.Token);
-            StatusMessage = "Exit code " + code;
+            StatusMessage = FriendlyStatus(lines, code);
             LoadSavedState();
         }
         catch (OperationCanceledException)
