@@ -30,7 +30,7 @@ RestartApplications=no
 UninstallDisplayIcon={app}\SwyfInstallerGui.exe
 
 [Files]
-Source: "SwyfInstaller.Gui\publish\SwyfInstallerGui.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "SwyfInstaller.Gui\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb"
 Source: "SwyfInstaller\publish\SwyfInstaller.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
