@@ -20,7 +20,6 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private double _progress;
     [ObservableProperty] private bool _isProgressIndeterminate;
     [ObservableProperty] private bool _isBusy;
-    [ObservableProperty] private bool _runPatchStep = true;
     [ObservableProperty] private string _logText = "";
     [ObservableProperty] private bool _updateAvailable;
     [ObservableProperty] private string _updateButtonText = "Update app";
@@ -174,9 +173,8 @@ public partial class MainViewModel : ObservableObject
         if (MessageBox.Show("Download the latest mod and set it up in your game folder?\n\nYour provider settings and backups are kept if you reinstall later.",
                 "Install latest mod",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        bool patch = RunPatchStep;
         await RunOpAsync((log, bar, ct) =>
-            SwyfInstaller.Ops.InstallFlowAsync(LoadBackendConfig(), WorkDir(), autoYes: true, applyPatch: patch, visibleWindow: true, log, bar, ct),
+            SwyfInstaller.Ops.InstallFlowAsync(LoadBackendConfig(), WorkDir(), autoYes: true, applyPatch: true, visibleWindow: true, log, bar, ct),
             "Installing… downloading the latest mod, then applying it to your game.");
     }
 
@@ -188,9 +186,8 @@ public partial class MainViewModel : ObservableObject
         if (MessageBox.Show("Update to the latest mod?\n\nOld mod files are removed first. Your settings, sign-in session and backups are always kept.",
                 "Update mod",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        bool patch = RunPatchStep;
         await RunOpAsync((log, bar, ct) =>
-            SwyfInstaller.Ops.UpdateFlowAsync(LoadBackendConfig(), WorkDir(), autoYes: true, applyPatch: patch, force: false, visibleWindow: true, log, bar, ct),
+            SwyfInstaller.Ops.UpdateFlowAsync(LoadBackendConfig(), WorkDir(), autoYes: true, applyPatch: true, force: false, visibleWindow: true, log, bar, ct),
             "Updating… removing old files, downloading the latest mod.");
     }
 

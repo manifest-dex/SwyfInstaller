@@ -4,8 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-        Title="SWYF Custom AI Installer" Width="860" Height="760"
-        MinWidth="640" MinHeight="560"
+        Title="SWYF Custom AI Installer" Width="640" Height="560"
+        MinWidth="520" MinHeight="460"
         WindowStartupLocation="CenterScreen"
         ExtendsContentIntoTitleBar="True"
         TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
@@ -15,118 +15,61 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <ui:TitleBar Grid.Row="0" Title="SWYF Custom AI Installer" ShowMaximize="False" />
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="16,8,16,8">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20,8,20,12">
             <StackPanel>
-                <TextBlock Text="SWYF Custom AI Installer" FontSize="22" FontWeight="Bold" />
-                <TextBlock Text="Use your own AI provider in Scam With Your Friends Playtest. 3 steps: find the game, install the mod, press F8 in-game."
-                           FontSize="12" Foreground="#6b7280" Margin="0,2,0,4" TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,4">
-                    <TextBlock Text="{Binding InstalledLabel}" VerticalAlignment="Center" FontSize="12" Foreground="#6b7280" />
-                    <TextBlock Text="{Binding AppVersion}" VerticalAlignment="Center" FontSize="12" Foreground="#4b5563" Margin="8,0,0,0"
-                               ToolTip="Version of this installer app (not the mod)." />
-                    <ui:Button Content="Check for updates" Command="{Binding CheckForUpdatesCommand}" Margin="8,0,0,0" Padding="8,3" FontSize="11"
-                               ToolTip="Check whether a newer installer app is available." />
+                <TextBlock Text="SWYF Custom AI Installer" FontSize="20" FontWeight="Bold" />
+                <StackPanel Orientation="Horizontal" Margin="0,2,0,12">
+                    <TextBlock Text="{Binding InstalledLabel}" FontSize="11" Foreground="#6b7280" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding AppVersion}" FontSize="11" Foreground="#4b5563" Margin="8,0,0,0" VerticalAlignment="Center" />
                     <ui:Button Content="{Binding UpdateButtonText}" Command="{Binding DownloadAndInstallUpdateCommand}"
                                Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVis}}"
-                               Margin="8,0,0,0" Padding="8,3" FontSize="11" Appearance="Primary"
-                               ToolTip="Download and install the newer installer app, then restart." />
+                               Margin="8,0,0,0" Padding="8,2" FontSize="11" Appearance="Primary" />
                 </StackPanel>
 
-                <Border Margin="0,8,0,0" Padding="16,14" CornerRadius="8" BorderBrush="#22ffffff" BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="Step 1 — Find your game" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,4" />
-                        <TextBlock Text="Pick the folder Steam installed the game into. Close the game first."
-                                   FontSize="11" Foreground="#6b7280" Margin="0,0,0,8" TextWrapping="Wrap" />
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ui:TextBox Text="{Binding GameDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        PlaceholderText="Steam\steamapps\common\Scam With Your Friends Playtest" Margin="0,0,8,0"
-                                        ToolTip="The folder containing Scam With Your Friends.exe" />
-                            <ui:Button Grid.Column="1" Content="Browse…" Command="{Binding BrowseGameDirCommand}" Margin="0,0,8,0" Padding="12,6"
-                                       ToolTip="Choose the game folder yourself." />
-                            <ui:Button Grid.Column="2" Content="Detect" Command="{Binding DetectGameDirCommand}" Padding="12,6"
-                                       ToolTip="Find the game folder automatically from your Steam libraries." />
-                        </Grid>
-                        <TextBlock Text="{Binding GameFolderStatus}" FontSize="11" Foreground="#9ca3af" Margin="0,8,0,0" TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
+                <TextBlock Text="Game folder" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:TextBox Text="{Binding GameDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                PlaceholderText="Scam With Your Friends Playtest folder" Margin="0,0,8,0" />
+                    <ui:Button Grid.Column="1" Content="Browse…" Command="{Binding BrowseGameDirCommand}" Margin="0,0,8,0" Padding="10,5" />
+                    <ui:Button Grid.Column="2" Content="Detect" Command="{Binding DetectGameDirCommand}" Padding="10,5" />
+                </Grid>
+                <TextBlock Text="{Binding GameFolderStatus}" FontSize="11" Foreground="#6b7280" Margin="0,0,0,12" TextWrapping="Wrap" />
 
-                <Border Margin="0,12,0,0" Padding="16,14" CornerRadius="8" BorderBrush="#22ffffff" BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="Step 2 — Install or manage the mod" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,4" />
-                        <TextBlock Text="Install downloads the latest mod and applies it. Your provider settings, sign-in and backups are always kept."
-                                   FontSize="11" Foreground="#6b7280" Margin="0,0,0,8" TextWrapping="Wrap" />
-                        <WrapPanel Orientation="Horizontal">
-                            <ui:Button Content="Install" Command="{Binding InstallCommand}" Appearance="Primary" Margin="0,0,8,8" Padding="16,6"
-                                       ToolTip="Download the latest mod and set it up (recommended first step)." />
-                            <ui:Button Content="Update mod" Command="{Binding UpdateModCommand}" Margin="0,0,8,8" Padding="16,6"
-                                       ToolTip="Remove old mod files and download the latest version. Settings are kept." />
-                            <ui:Button Content="Verify" Command="{Binding VerifyCommand}" Margin="0,0,8,8" Padding="16,6"
-                                       ToolTip="Check installed mod files for changes or missing files." />
-                            <ui:Button Content="Uninstall" Command="{Binding UninstallCommand}" Margin="0,0,8,8" Padding="16,6"
-                                       ToolTip="Remove the mod and restore original game files. Settings are kept." />
-                            <ui:Button Content="Cancel" Command="{Binding CancelRunCommand}"
-                                       Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"
-                                       Margin="0,0,8,8" Padding="16,6"
-                                       ToolTip="Stop the current operation." />
-                        </WrapPanel>
-                        <CheckBox Content="Apply patch automatically after download (recommended)" IsChecked="{Binding RunPatchStep, Mode=TwoWay}"
-                                  Margin="0,2,0,4" Foreground="#9ca3af" FontSize="11"
-                                  ToolTip="Uncheck to only download files without applying them (you must then run Install Custom AI.cmd yourself)." />
-                        <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress, Mode=OneWay}" Height="6" Margin="0,10,0,6"
-                                     IsIndeterminate="{Binding IsProgressIndeterminate}"
-                                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
-                        <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="#9ca3af" TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
+                <WrapPanel Orientation="Horizontal">
+                    <ui:Button Content="Install" Command="{Binding InstallCommand}" Appearance="Primary" Margin="0,0,8,8" Padding="20,6" />
+                    <ui:Button Content="Update" Command="{Binding UpdateModCommand}" Margin="0,0,8,8" Padding="20,6" />
+                    <ui:Button Content="Uninstall" Command="{Binding UninstallCommand}" Margin="0,0,8,8" Padding="20,6" />
+                    <ui:Button Content="Cancel" Command="{Binding CancelRunCommand}"
+                               Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"
+                               Margin="0,0,8,8" Padding="20,6" />
+                </WrapPanel>
+                <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress, Mode=OneWay}" Height="5" Margin="0,4,0,4"
+                             IsIndeterminate="{Binding IsProgressIndeterminate}"
+                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="#9ca3af" TextWrapping="Wrap" Margin="0,0,0,4" />
+                <TextBlock Text="After installing, host a lobby and press F8 in-game to set up your AI." FontSize="11" Foreground="#6b7280" TextWrapping="Wrap" Margin="0,0,0,12" />
 
-                <Border Margin="0,12,0,0" Padding="16,14" CornerRadius="8" BorderBrush="#22ffffff" BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="Step 3 — Play with your own AI" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,4" />
-                        <TextBlock FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap">
-                            Start the game, host a lobby, and press <Bold>F8</Bold> (or AI Settings) to enter your provider details.
-                            Only the lobby host needs the mod — guests join normally. New calls use your saved settings.
-                        </TextBlock>
-                    </StackPanel>
-                </Border>
-
-                <Expander Header="Details log (for troubleshooting)" Margin="0,12,0,0" Foreground="#9ca3af" IsExpanded="False">
+                <Expander Header="Details" Foreground="#6b7280" FontSize="11">
                     <StackPanel>
                         <TextBox x:Name="LogBox" Text="{Binding LogText, Mode=OneWay}" IsReadOnly="True"
                                  FontFamily="Consolas" FontSize="11" AcceptsReturn="True"
-                                 Height="170" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                                 Background="#0d1117" Foreground="#e6edf3" BorderBrush="#22ffffff"
+                                 Height="150" VerticalScrollBarVisibility="Auto"
+                                 Background="#0d1117" Foreground="#e6edf3"
                                  TextChanged="LogBox_TextChanged" />
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <ui:Button Content="Copy log" Command="{Binding CopyLogCommand}" Padding="12,4" FontSize="11"
-                                       ToolTip="Copy the log so you can paste it when asking for help." />
-                            <TextBlock Text="Press Copy log before asking for help — it saves guessing." FontSize="11"
-                                       Foreground="#6b7280" VerticalAlignment="Center" Margin="8,0,0,0" TextWrapping="Wrap" />
-                        </StackPanel>
+                        <ui:Button Content="Copy log" Command="{Binding CopyLogCommand}" Padding="10,3" FontSize="11"
+                                   Margin="0,6,0,0" HorizontalAlignment="Left" />
                     </StackPanel>
-                </Expander>
-
-                <Expander Header="Help — F8 does nothing? Game updated? Errors?" Margin="0,8,0,0" Foreground="#9ca3af">
-                    <TextBlock FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap" Margin="0,4,0,0">
-                        Close the game, press Update mod, then start the game again. If F8 still does nothing, check the status
-                        message above and the details log. Steam updates can remove the patch — Update mod repairs it.
-                        Keep the CustomAI/backup folder; uninstall keeps your settings. Only the host needs the mod.
-                    </TextBlock>
                 </Expander>
             </StackPanel>
         </ScrollViewer>
-
-        <Border Grid.Row="2" Background="#08ffffff" BorderBrush="#12ffffff" BorderThickness="0,1,0,0" Padding="16,8">
-            <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="#6b7280" VerticalAlignment="Center" TextWrapping="Wrap" />
-        </Border>
     </Grid>
 </ui:FluentWindow>
