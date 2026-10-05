@@ -9,7 +9,7 @@ namespace SwyfInstaller.Gui.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
-    private const string DefaultRepo = "manifest-dex/swyf-custom-ai-mod";
+    private const string DefaultRepo = "manifest-dex/SwyfInstaller";
     private const string ExeName = "Scam With Your Friends.exe";
 
     private readonly BackendRunner _backend = new();

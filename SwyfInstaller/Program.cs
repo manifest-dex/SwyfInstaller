@@ -4,7 +4,7 @@ internal static class Program
 {
     private const string Usage = """
         SwyfInstaller 1.0.0 - console installer for SWYF Custom AI
-          https://github.com/manifest-dex/swyf-custom-ai-mod
+          https://github.com/manifest-dex/SwyfInstaller
 
         Usage:
           SwyfInstaller [command] [options]
@@ -23,7 +23,7 @@ internal static class Program
 
         Options:
           --gamedir PATH   game folder (contains "Scam With Your Friends.exe")
-          --repo OWNER/REPO override source repo (default manifest-dex/swyf-custom-ai-mod)
+          --repo OWNER/REPO override source repo (default manifest-dex/SwyfInstaller)
           --yes            answer yes to confirmations
           --no-apply       skip running Install Custom AI.cmd after extract
           --force          reinstall even when already on the latest tag

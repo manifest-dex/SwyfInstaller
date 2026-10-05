@@ -1,7 +1,7 @@
 # SwyfInstaller
 
-Console installer for [SWYF Custom AI](https://github.com/manifest-dex/swyf-custom-ai-mod)
-(`manifest-dex/swyf-custom-ai-mod`). Requires .NET 10 SDK to build; the built
+Console installer for [SWYF Custom AI](../custom-ai/README.md)
+(`manifest-dex/SwyfInstaller`). Requires .NET 10 SDK to build; the built
 apps run on plain Windows x64 with no extra setup.
 
 ## GUI

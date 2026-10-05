@@ -8,7 +8,7 @@ internal static class Store
     public sealed class AppConfig
     {
         public string GameDir { get; set; } = "";
-        public string Repo { get; set; } = "manifest-dex/swyf-custom-ai-mod";
+        public string Repo { get; set; } = "manifest-dex/SwyfInstaller";
         public string InstalledTag { get; set; } = "";
     }
 
@@ -38,7 +38,10 @@ internal static class Store
                 var cfg = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(ConfigPath));
                 if (cfg != null)
                 {
-                    if (string.IsNullOrWhiteSpace(cfg.Repo)) cfg.Repo = "manifest-dex/swyf-custom-ai-mod";
+                    if (string.IsNullOrWhiteSpace(cfg.Repo)) cfg.Repo = "manifest-dex/SwyfInstaller";
+                    // Migrate configs pointing at the old standalone mod repo (merged into custom-ai/ + deleted).
+                    if (string.Equals(cfg.Repo.Trim(), "manifest-dex/swyf-custom-ai-mod", StringComparison.OrdinalIgnoreCase))
+                        cfg.Repo = "manifest-dex/SwyfInstaller";
                     return cfg;
                 }
             }

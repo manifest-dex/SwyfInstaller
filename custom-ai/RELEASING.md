@@ -1,5 +1,10 @@
 # Releasing v1.1.0
 
+> NOTE (merge): this file predates the monorepo merge. The mod now lives in
+> `custom-ai/` of `manifest-dex/SwyfInstaller`; `swyf-custom-ai-mod` is deleted.
+> Replace `--repo manifest-dex/swyf-custom-ai-mod` with
+> `--repo manifest-dex/SwyfInstaller` and run `custom-ai/release.ps1` from the repo root.
+
 This is a manual local release. No commit or tag deploys SWYF or publishes a GitHub release automatically. The production service and ManifestDeX OAuth must be deployed and verified separately before announcing free hosted AI availability.
 
 ## Prepare and verify

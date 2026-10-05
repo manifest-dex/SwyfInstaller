@@ -1,7 +1,7 @@
-# SwyfInstaller
+# SwyfInstaller + SWYF Custom AI (monorepo)
 
-Console installer + basic WinForms UI for
-[SWYF Custom AI](https://github.com/manifest-dex/swyf-custom-ai-mod).
+Console installer + WPF UI + the [SWYF Custom AI](custom-ai/README.md) mod source,
+all in this repo. `swyf-custom-ai-mod` was merged into `custom-ai/` and deleted.
 
 - Downloads the latest `SWYF-Custom-AI-*-win-x64.zip` GitHub release.
 - Verifies the download against the published checksum **and** the GitHub
@@ -48,6 +48,15 @@ automates build, test, setup, tag and publish.
 ```
 SwyfInstaller/        console tool (download / verify / install / update / uninstall)
 SwyfInstaller.Gui/    WPF UI (LuaShareX-style) driving the console tool
+custom-ai/            SWYF Custom AI mod source (Bridge/Panel/Installer/tests, build.ps1)
 installer.iss         Inno Setup script (per-user setup exe)
 release.ps1           build, test, setup, tag and publish a release
+```
+
+Mod releases (`SWYF-Custom-AI-*-win-x64.zip` + `.sha256`) are now published
+from this repo. The installer defaults to `manifest-dex/SwyfInstaller`;
+old `swyf-custom-ai-mod` configs auto-migrate on load. Build the mod ZIP with:
+
+```powershell
+./custom-ai/build.ps1 -GameDir '<your-game-folder>'
 ```

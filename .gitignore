@@ -3,7 +3,18 @@ bin/
 obj/
 publish/
 artifacts/
+dist/
 TestResults/
+*.zip
+
+# Custom AI mod (custom-ai/) - game-local and secret files, never commit
+settings.json
+settings.json.tmp
+.env
+.env.*
+*.log
+/CustomAI/
+/graft/
 
 # User-specific / runtime state
 .vs/
