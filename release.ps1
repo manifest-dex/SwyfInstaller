@@ -1,5 +1,5 @@
 # Release script for SwyfInstaller.
-# Builds, tests, packages (ZIP + .sha256), tags and publishes a GitHub Release.
+# Builds, tests, packages the setup exe (+ .sha256), tags and publishes a GitHub Release.
 # Usage:  powershell -ExecutionPolicy Bypass -File release.ps1 -Tag v1.0.0
 #         powershell -ExecutionPolicy Bypass -File release.ps1 -Tag v1.0.0 -BuildOnly
 param(
@@ -71,12 +71,13 @@ $headers = @{
     "X-GitHub-Api-Version"  = "2022-11-28"
 }
 $notes = @"
-Console installer + basic WinForms UI for SWYF Custom AI.
+Installer app + backend for SWYF Custom AI (mod source lives in custom-ai/).
 
-- Downloads the latest mod release and checks it before touching the game.
-- Update removes old package files, keeps settings and backups.
-- Verify re-checks installed files; uninstall runs the package uninstaller.
-- The app now updates itself: it checks this repo on startup and installs
+- Guided 3-step UI: find the game, install/manage the mod, press F8 in-game.
+- The app calls the backend directly: no commands or flags needed.
+- Downloads the latest mod release and checksum-verifies it before touching the game.
+- Update removes old package files, keeps settings, sign-in and backups.
+- The app updates itself: it checks this repo on startup and installs
   new releases automatically (checksum-verified).
 
 Run the setup to install (Start Menu + Programs list, no admin needed).

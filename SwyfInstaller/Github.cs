@@ -17,19 +17,17 @@ internal static class Github
 {
     private const string ApiBase = "https://api.github.com/repos/";
 
-    public static ReleaseInfo ParseLatest(string repo, string json)
+    private static ReleaseInfo TryParseRelease(JsonElement root)
     {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("tag_name", out var tagEl))
-            throw new InvalidDataException("GitHub API response has no tag_name (repo may have no releases).");
+            return null;
 
         var rel = new ReleaseInfo { Tag = tagEl.GetString() ?? "" };
         if (string.IsNullOrWhiteSpace(rel.Tag))
-            throw new InvalidDataException("GitHub API response has an empty tag.");
+            return null;
 
         if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
-            throw new InvalidDataException("Release " + rel.Tag + " has no downloadable assets.");
+            return null;
 
         foreach (var a in assets.EnumerateArray())
         {
@@ -59,25 +57,51 @@ internal static class Github
             }
         }
 
-        if (rel.ZipUrl == "")
-            throw new InvalidDataException("Release " + rel.Tag + " has no SWYF-Custom-AI-*-win-x64.zip asset.");
-        if (rel.ChecksumUrl == "")
-            throw new InvalidDataException("Release " + rel.Tag + " has no checksum file, so the download cannot be verified. Aborting for safety.");
+        if (rel.ZipUrl == "" || rel.ChecksumUrl == "")
+            return null;
         return rel;
     }
 
+    public static ReleaseInfo ParseLatest(string repo, string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        var rel = TryParseRelease(root);
+        if (rel != null)
+            return rel;
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("tag_name", out _))
+            throw new InvalidDataException("GitHub API response has no tag_name (repo may have no releases).");
+        throw new InvalidDataException("Release has no verifiable SWYF-Custom-AI-*-win-x64.zip asset (.zip + .sha256 required). Aborting for safety.");
+    }
+
+    // Newest-first scan: returns the first non-draft release carrying a
+    // verifiable mod ZIP, so setup-only releases in the same repo are skipped.
     public static async Task<ReleaseInfo> GetLatestAsync(HttpClient http, string repo, CancellationToken ct)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Get, ApiBase + repo.Trim('/') + "/releases/latest");
-        req.Headers.UserAgent.ParseAdd("SwyfInstaller/1.0");
-        req.Headers.Accept.ParseAdd("application/vnd.github+json");
-        using var res = await http.SendAsync(req, ct);
-        string body = await res.Content.ReadAsStringAsync(ct);
-        if ((int)res.StatusCode == 404)
-            throw new InvalidDataException("No published releases found for " + repo + " (HTTP 404).");
-        if (!res.IsSuccessStatusCode)
-            throw new HttpRequestException("GitHub API returned HTTP " + (int)res.StatusCode + ": " + body.Trim());
-        return ParseLatest(repo, body);
+        for (int page = 1; page <= 5; page++)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, ApiBase + repo.Trim('/') + "/releases?per_page=20&page=" + page);
+            req.Headers.UserAgent.ParseAdd("SwyfInstaller/1.0");
+            req.Headers.Accept.ParseAdd("application/vnd.github+json");
+            using var res = await http.SendAsync(req, ct);
+            string body = await res.Content.ReadAsStringAsync(ct);
+            if ((int)res.StatusCode == 404)
+                throw new InvalidDataException("No published releases found for " + repo + " (HTTP 404).");
+            if (!res.IsSuccessStatusCode)
+                throw new HttpRequestException("GitHub API returned HTTP " + (int)res.StatusCode + ": " + body.Trim());
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+                break;
+            foreach (var el in doc.RootElement.EnumerateArray())
+            {
+                if (el.TryGetProperty("draft", out var draft) && draft.ValueKind == JsonValueKind.True && draft.GetBoolean())
+                    continue;
+                var rel = TryParseRelease(el);
+                if (rel != null)
+                    return rel;
+            }
+        }
+        throw new InvalidDataException("No published release with a verifiable SWYF-Custom-AI-*-win-x64.zip asset found for " + repo + ".");
     }
 
     public static HttpClient CreateClient(TimeSpan timeout)

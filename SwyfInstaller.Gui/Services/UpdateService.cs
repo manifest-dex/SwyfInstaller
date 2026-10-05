@@ -57,48 +57,58 @@ internal sealed class SelfUpdater
         return false;
     }
 
+    // Newest-first scan: returns the newest setup release newer than this app.
+    // Mod-only releases (no setup exe) are skipped, so both kinds can share one repo.
     public async Task<SelfUpdateInfo> CheckForUpdatesAsync(CancellationToken ct = default)
     {
-        using var res = await _api.GetAsync(
-            $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest", ct);
-        if (!res.IsSuccessStatusCode) return null;
-
-        using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync(ct));
-        var root = doc.RootElement;
-        if (root.TryGetProperty("draft", out var draft) && draft.GetBoolean()) return null;
-        if (!root.TryGetProperty("tag_name", out var tagEl)) return null;
-        if (!TryParseTag(tagEl.GetString() ?? "", out var latest)) return null;
-        if (latest <= CurrentVersion) return null;
-        if (!root.TryGetProperty("assets", out var assets)) return null;
-
-        string setupName = "", setupUrl = "", setupDigest = "";
-        long setupSize = 0;
-        foreach (var a in assets.EnumerateArray())
+        for (int page = 1; page <= 3; page++)
         {
-            string name = a.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-            string url = a.TryGetProperty("browser_download_url", out var u) ? u.GetString() ?? "" : "";
-            if (url == "") continue;
-            if (!name.StartsWith("SwyfInstaller-Setup-", StringComparison.OrdinalIgnoreCase)) continue;
-            if (!name.EndsWith("-win-x64.exe", StringComparison.OrdinalIgnoreCase)) continue;
-            long size = a.TryGetProperty("size", out var s) && s.TryGetInt64(out var v) ? v : 0;
-            string digest = "";
-            if (a.TryGetProperty("digest", out var d))
-            {
-                string raw = d.GetString() ?? "";
-                if (raw.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
-                    digest = raw.Substring(7).ToLowerInvariant();
-            }
-            setupName = name;
-            setupUrl = url;
-            setupSize = size;
-            setupDigest = digest;
-        }
-        if (setupUrl == "") return null;
+            using var res = await _api.GetAsync(
+                $"https://api.github.com/repos/{Owner}/{Repo}/releases?per_page=20&page={page}", ct);
+            if (!res.IsSuccessStatusCode) return null;
 
-        string relName = root.TryGetProperty("name", out var rn) ? rn.GetString() ?? "" : "";
-        string notes = root.TryGetProperty("body", out var rb) ? rb.GetString() ?? "" : "";
-        return new SelfUpdateInfo(latest.ToString(), relName, notes,
-            setupName, setupUrl, setupSize, setupDigest);
+            using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync(ct));
+            if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+                return null;
+            foreach (var root in doc.RootElement.EnumerateArray())
+            {
+                if (root.TryGetProperty("draft", out var draft) && draft.GetBoolean()) continue;
+                if (!root.TryGetProperty("tag_name", out var tagEl)) continue;
+                if (!TryParseTag(tagEl.GetString() ?? "", out var version)) continue;
+                if (!root.TryGetProperty("assets", out var assets)) continue;
+
+                string setupName = "", setupUrl = "", setupDigest = "";
+                long setupSize = 0;
+                foreach (var a in assets.EnumerateArray())
+                {
+                    string name = a.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                    string url = a.TryGetProperty("browser_download_url", out var u) ? u.GetString() ?? "" : "";
+                    if (url == "") continue;
+                    if (!name.StartsWith("SwyfInstaller-Setup-", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!name.EndsWith("-win-x64.exe", StringComparison.OrdinalIgnoreCase)) continue;
+                    long size = a.TryGetProperty("size", out var s) && s.TryGetInt64(out var v) ? v : 0;
+                    string digest = "";
+                    if (a.TryGetProperty("digest", out var d))
+                    {
+                        string raw = d.GetString() ?? "";
+                        if (raw.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+                            digest = raw.Substring(7).ToLowerInvariant();
+                    }
+                    setupName = name;
+                    setupUrl = url;
+                    setupSize = size;
+                    setupDigest = digest;
+                }
+                if (setupUrl == "") continue; // mod-only release: keep scanning older ones
+                if (version <= CurrentVersion) return null; // newest setup release is current or older
+
+                string relName = root.TryGetProperty("name", out var rn) ? rn.GetString() ?? "" : "";
+                string notes = root.TryGetProperty("body", out var rb) ? rb.GetString() ?? "" : "";
+                return new SelfUpdateInfo(version.ToString(), relName, notes,
+                    setupName, setupUrl, setupSize, setupDigest);
+            }
+        }
+        return null;
     }
 
     private static async Task DownloadFileAsync(string url, string dest, long size, double fromFrac, double toFrac,
