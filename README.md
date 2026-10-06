@@ -181,11 +181,14 @@ this game. After choosing a model, run **Test Connection**, then try an
 actual call. Keep responses within the game's **15-second deadline**. Do not
 append `/chat/completions` to the Base URLs below.
 
-#### 1. OpenRouter — free cloud models
+#### 1. OpenRouter — free cloud models (recommended)
 
 - **Base URL:** `https://openrouter.ai/api/v1`
-- **API key:** create an OpenRouter account and API key.
-- **Model ID:** select a currently available model with the **`:free`** suffix
+- **API key:** create one at [openrouter.ai/keys](https://openrouter.ai/workspaces/default/keys).
+  It is shown **only once** right after you create it — copy it immediately
+  into the F8 panel. If you lost it, create a new key.
+- **Model ID (recommended):** `meta-llama/llama-3.3-70b-instruct`.
+  Alternatives: a currently available model with the **`:free`** suffix
   from the [model catalog](https://openrouter.ai/models). Choose one whose
   endpoint supports structured outputs.
 - **Output mode:** start with **JSON Schema**; use **JSON compatibility mode**

@@ -267,6 +267,25 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void CopyRecommended()
+    {
+        const string setup =
+            "Base URL: https://openrouter.ai/api/v1\n" +
+            "Model ID: meta-llama/llama-3.3-70b-instruct\n" +
+            "API key: create one at https://openrouter.ai/workspaces/default/keys (shown only once — copy it right away)";
+        try
+        {
+            Clipboard.SetText(setup);
+            StatusMessage = "Recommended setup copied — paste it into the F8 panel in-game.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Could not copy: " + ex.Message, "Copy failed",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    [RelayCommand]
     private void CancelRun()
     {
         try { _runCts?.Cancel(); } catch { }

@@ -56,7 +56,26 @@
                              IsIndeterminate="{Binding IsProgressIndeterminate}"
                              Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
                 <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="#9ca3af" TextWrapping="Wrap" Margin="0,0,0,4" />
-                <TextBlock Text="After installing, host a lobby and press F8 in-game to set up your AI." FontSize="11" Foreground="#6b7280" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <TextBlock Text="After installing, host a lobby and press F8 in-game to set up your AI." FontSize="11" Foreground="#6b7280" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                <Border Padding="10" CornerRadius="6" BorderBrush="#22ffffff" BorderThickness="1" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Recommended setup (enter in F8)" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBlock FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap">
+                            Base URL <Run FontFamily="Consolas" Text="https://openrouter.ai/api/v1" />
+                        </TextBlock>
+                        <TextBlock FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap">
+                            Model <Run FontFamily="Consolas" Text="meta-llama/llama-3.3-70b-instruct" />
+                        </TextBlock>
+                        <TextBlock FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap" Margin="0,2,0,0">
+                            Key: <Hyperlink NavigateUri="https://openrouter.ai/workspaces/default/keys" RequestNavigate="Link_RequestNavigate">create one here</Hyperlink>
+                            — shown only once, copy it right away.
+                        </TextBlock>
+                        <ui:Button Content="Copy setup" Command="{Binding CopyRecommendedCommand}" Padding="10,3" FontSize="11"
+                                   Margin="0,6,0,0" HorizontalAlignment="Left"
+                                   ToolTip="Copy the recommended base URL, model and key link." />
+                    </StackPanel>
+                </Border>
 
                 <Expander Header="Details" Foreground="#6b7280" FontSize="11">
                     <StackPanel>

@@ -17,4 +17,14 @@ public partial class MainWindow : FluentWindow
     {
         LogBox.ScrollToEnd();
     }
+
+    private void Link_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch { }
+        e.Handled = true;
+    }
 }
