@@ -12,7 +12,7 @@ try {
     & ./tools/verify-bridge.ps1 -GameDir $GameDir
     New-Item -ItemType Directory -Force -Path dist/bridge | Out-Null
     Copy-Item -LiteralPath src/Bridge/bin/Release/net471/SWYF.CustomAI.Bridge.dll -Destination dist/bridge/SWYF.CustomAI.Bridge.dll
-    Copy-Item -LiteralPath install.ps1,launch.ps1,README.md -Destination dist
+    Copy-Item -LiteralPath install.ps1,launch.ps1,../README.md -Destination dist
     Copy-Item -LiteralPath packaging/prerequisites.ps1 -Destination dist
     Write-Output 'Package ready: dist'
     # A fresh staging directory keeps local settings/backups and stale files out of the release ZIP.
@@ -27,7 +27,7 @@ try {
             if ($file.Extension -ne '.pdb') { Copy-Item -LiteralPath $file.FullName -Destination $destination }
         }
     }
-    Copy-Item -LiteralPath README.md -Destination (Join-Path $releaseRoot 'CustomAI/README.md')
+    Copy-Item -LiteralPath ../README.md -Destination (Join-Path $releaseRoot 'CustomAI/README.md')
     foreach ($wrapper in Get-ChildItem -LiteralPath packaging -Filter '*.cmd') {
         $text = [IO.File]::ReadAllText($wrapper.FullName).Replace("`r`n", "`n").Replace("`n", "`r`n")
         [IO.File]::WriteAllText((Join-Path $releaseRoot $wrapper.Name), $text, [Text.UTF8Encoding]::new($false))
