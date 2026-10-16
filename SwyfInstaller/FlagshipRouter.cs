@@ -364,6 +364,76 @@ public static class FlagshipRouter
         return 0;
     }
 
+    public static async Task DisableRouterLoginAsync(RouterSession session, IProgress<string> log = null, CancellationToken ct = default)
+    {
+        using var res = await session.Http.SendAsync(new HttpRequestMessage(new HttpMethod("PATCH"), "http://127.0.0.1:20128/api/settings")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(new { requireLogin = false }), System.Text.Encoding.UTF8, "application/json"),
+        }, ct);
+        string body = await res.Content.ReadAsStringAsync(ct);
+        if (!res.IsSuccessStatusCode || !body.Contains("\"requireLogin\":false"))
+            throw new InvalidOperationException("Could not disable the dashboard login (HTTP " + (int)res.StatusCode + "). Change it in the dashboard under Settings instead.");
+        Say(log, "Dashboard login disabled — the router UI now opens without a password (local only). Re-enable it under Settings any time.");
+    }
+
+    public static async Task<int> RemoveRouterPasswordFlowAsync(string dashboardPassword, IProgress<string> log = null, CancellationToken ct = default)
+    {
+        if (!await IsRunningAsync(ct))
+            throw new InvalidOperationException("FlagshipRouter is not running. Press Setup FlagshipRouter first.");
+        using var session = await LoginRouterAsync(dashboardPassword ?? "123456", log, ct);
+        await DisableRouterLoginAsync(session, log, ct);
+        return 0;
+    }
+
+    public static void ApplyRecommendedModSettings(string gameDir, IProgress<string> log = null)
+    {
+        if (!GameDir.IsGameDir(gameDir)) throw new InvalidOperationException("Pick a valid game folder first.");
+        string path = Path.Combine(gameDir, "CustomAI", "settings.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        string key = "";
+        bool useMdx = false;
+        double? temp = null, topP = null;
+        int? maxTokens = null;
+        string outputMode = "schema";
+        bool hadFile = File.Exists(path);
+        try
+        {
+            if (hadFile)
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(path));
+                var root = doc.RootElement;
+                if (root.TryGetProperty("apiKey", out var k) && k.ValueKind == JsonValueKind.String) key = k.GetString() ?? "";
+                if (root.TryGetProperty("useManifestDeX", out var m) && m.ValueKind is JsonValueKind.True or JsonValueKind.False) useMdx = m.GetBoolean();
+                if (root.TryGetProperty("temperature", out var t) && t.ValueKind == JsonValueKind.Number) temp = t.GetDouble();
+                if (root.TryGetProperty("topP", out var p) && p.ValueKind == JsonValueKind.Number) topP = p.GetDouble();
+                if (root.TryGetProperty("maxTokens", out var mt) && mt.ValueKind == JsonValueKind.Number) maxTokens = mt.GetInt32();
+                if (root.TryGetProperty("outputMode", out var o) && o.ValueKind == JsonValueKind.String && (o.GetString() is "schema" or "json")) outputMode = o.GetString()!;
+            }
+        }
+        catch { }
+        if (useMdx)
+        {
+            Say(log, "Mod stays on ManifestDeX AI — private provider fields untouched.");
+            return;
+        }
+        var settings = new
+        {
+            enabled = true,
+            baseUrl = DefaultBaseUrl,
+            model = DefaultModel,
+            apiKey = key,
+            temperature = temp,
+            topP,
+            maxTokens,
+            outputMode,
+            useManifestDeX = false,
+        };
+        string tempPath = path + ".tmp";
+        File.WriteAllText(tempPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+        File.Move(tempPath, path, true);
+        Say(log, (hadFile ? "Mod settings updated to recommended defaults (" : "Mod settings created with recommended defaults (") + DefaultBaseUrl + " / " + DefaultModel + ", key " + (key.Length > 0 ? "kept" : "none") + "). F8 > Test Connection, then Save Settings.");
+    }
+
     public static async Task<int> SetupFlowAsync(string gameDir, bool startServer, IProgress<string> log = null, IProgress<double> progress = null, CancellationToken ct = default)
     {
         if (!GameDir.IsGameDir(gameDir)) throw new InvalidOperationException("Pick a valid game folder first.");

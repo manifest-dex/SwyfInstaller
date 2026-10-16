@@ -25,6 +25,12 @@ public sealed record Settings(bool Enabled = true, string BaseUrl = Settings.Fla
     public static bool IsUnconfigured(Settings s) =>
         !s.UseManifestDeX && string.IsNullOrWhiteSpace(s.BaseUrl) && string.IsNullOrWhiteSpace(s.Model) && s.ApiKey == ""
         && s.Temperature == null && s.TopP == null && s.MaxTokens == null && (s.OutputMode is "schema" or "json");
+    // Models the router no longer serves for SWYF (OpenCode free tier blocks
+    // non-OpenCode clients; union-alpha is not served upstream). Never-configured
+    // or stale installs are repaired to the current default, keeping the key.
+    public static bool IsStaleRouterDefault(Settings s) =>
+        !s.UseManifestDeX && (s.BaseUrl == FlagshipRouterBaseUrl || string.IsNullOrWhiteSpace(s.BaseUrl))
+        && (s.Model is "gpt-6-astra" or "oc/union-alpha" or "");
 }
 public sealed record SettingsInput(bool Enabled, string BaseUrl, string Model, string? ApiKey = null,
     bool ClearApiKey = false, double? Temperature = null, double? TopP = null, int? MaxTokens = null, string OutputMode = "schema", bool UseManifestDeX = false);
@@ -51,7 +57,24 @@ public sealed class SettingsStore(string path)
             current = JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), Json) ?? throw new JsonException();
             // Fresh/never-configured installs (empty disabled settings) auto-enable FlagshipRouter.
             if (!current.Enabled && Settings.IsUnconfigured(current))
+            {
                 current = Settings.FlagshipRouterDefault();
+            }
+            else if (Settings.IsStaleRouterDefault(current) && current.Model != Settings.FlagshipRouterModel)
+            {
+                // Repair known-dead router defaults (e.g. gpt-6-astra, oc/union-alpha):
+                // keep the key, advanced options and the enabled flag, fix the model.
+                current = Settings.FlagshipRouterDefault() with
+                {
+                    Enabled = current.Enabled,
+                    ApiKey = current.ApiKey,
+                    Temperature = current.Temperature,
+                    TopP = current.TopP,
+                    MaxTokens = current.MaxTokens,
+                    OutputMode = current.OutputMode,
+                };
+                LoadError = "Updated the saved model to " + Settings.FlagshipRouterModel + " (the old model is no longer served). Save Settings to confirm.";
+            }
             Validate(current, current.Enabled);
         }
         catch

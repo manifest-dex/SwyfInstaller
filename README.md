@@ -105,6 +105,19 @@ Fresh installs already use this. Full setup from the installer app:
 3. In the installer press **Test router**. If it reports missing credentials, connect that provider first; if 401, paste a dashboard key into F8. Then in-game press F8, verify **Use custom provider** is on with
    `http://127.0.0.1:20128/v1` / `groq/openai/gpt-oss-120b`, and **Save Settings**.
 
+Shortcuts in the installer app:
+
+- **Save Groq key** — paste a Groq key once; the installer validates it,
+  saves the Groq connection into the router, points the mod at the default
+  model, and tests it. No dashboard digging.
+- **Apply recommended settings** — rewrites `<game>/CustomAI/settings.json`
+  to the current defaults (router URL + model, enabled). Key, advanced
+  options and ManifestDeX choice are kept. The F8 panel also auto-repairs a
+  stale saved model (e.g. `gpt-6-astra`) on next open and tells you to save.
+- **Remove router password** — turns off the dashboard login (local machine
+  only, reversible under Settings). Asks for the current dashboard password
+  once.
+
 Manual equivalent: `git clone https://github.com/theRizwan/FlagshipRouter.git`,
 `npm run launch -- --host 127.0.0.1`, then same dashboard steps.
 

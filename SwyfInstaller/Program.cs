@@ -51,6 +51,8 @@ internal static class Program
             Console.WriteLine("  6) Setup FlagshipRouter (clone, install, start, point mod at it)");
             Console.WriteLine("  7) Setup keyless Ollama (local, no accounts or keys)");
             Console.WriteLine("  8) Save Groq key (validate, connect router, point mod)");
+            Console.WriteLine("  9) Apply recommended mod settings (keep key)");
+            Console.WriteLine("  10) Remove router dashboard password (local only)");
             Console.WriteLine("  0) Exit");
             Console.Write("Choice: ");
             string choice = (Console.ReadLine() ?? "").Trim();
@@ -112,17 +114,32 @@ internal static class Program
                         catch { }
                         await FlagshipRouter.SaveGroqKeyFlowAsync(cfg.GameDir, gkey, dpass, rkey, null, ct);
                         break;
+                    case "9":
+                        GameDir.Resolve(cfg, interactive: true);
+                        Store.SaveConfig(cfg);
+                        FlagshipRouter.ApplyRecommendedModSettings(cfg.GameDir);
+                        break;
+                    case "10":
+                        await FlagshipRouter.RemoveRouterPasswordFlowAsync(await PromptDashboardPasswordAsync(), null, ct);
+                        break;
                     case "0":
                     case "q":
                     case "exit":
                         return 0;
                     default:
-                        Console.WriteLine("Pick 0-5.");
+                        Console.WriteLine("Pick 0-10.");
                         break;
                 }
             }
             catch (OperationCanceledException) { Console.WriteLine("Cancelled."); }
             catch (Exception ex) { Console.WriteLine("ERROR: " + ex.Message); }
         }
+    }
+
+    private static Task<string> PromptDashboardPasswordAsync()
+    {
+        Console.Write("Current dashboard password [123456]: ");
+        string pass = (Console.ReadLine() ?? "").Trim();
+        return Task.FromResult(pass == "" ? "123456" : pass);
     }
 }

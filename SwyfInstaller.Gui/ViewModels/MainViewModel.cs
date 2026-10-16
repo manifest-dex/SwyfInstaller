@@ -331,6 +331,38 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task ApplyRecommendedSettingsAsync()
+    {
+        if (IsBusy) return;
+        if (!RequireGameFolder("apply settings")) return;
+        await RunOpAsync((log, _, _) =>
+        {
+            SwyfInstaller.FlagshipRouter.ApplyRecommendedModSettings(GameDir.Trim(), log);
+            FlagshipStatus = "Recommended mod settings applied — F8 > Test Connection, then Save Settings.";
+            return Task.FromResult(0);
+        },
+            "Applying recommended mod settings…");
+    }
+
+    [RelayCommand]
+    private async Task RemoveRouterPasswordAsync()
+    {
+        if (IsBusy) return;
+        var dlg = new RouterPasswordDialog { Owner = Application.Current.MainWindow };
+        if (dlg.ShowDialog() != true) return;
+        string password = dlg.DashboardPassword;
+        await RunOpAsync(async (log, _, ct) =>
+        {
+            FlagshipStatus = "Router password: removing…";
+            int code = await SwyfInstaller.FlagshipRouter.RemoveRouterPasswordFlowAsync(password, log, ct);
+            FlagshipStatus = code == 0 ? "Router password removed — dashboard opens without a login."
+                                       : "Router password removal needs attention — see Details.";
+            return code;
+        },
+            "Removing router dashboard password…");
+    }
+
+    [RelayCommand]
     private void CopyLog()
     {
         try

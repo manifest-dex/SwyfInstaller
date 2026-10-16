@@ -120,6 +120,7 @@ await Failure(async () => await provider.Complete(input, settings with { BaseUrl
 var config = Path.Combine(output, "settings.json");
 var store = new SettingsStore(config); store.Load(); Check(store.Read().Enabled && store.Read().BaseUrl == Settings.FlagshipRouterBaseUrl && store.Read().Model == Settings.FlagshipRouterModel, "first launch auto-enables FlagshipRouter");
 File.WriteAllText(config, "{}"); var empty = new SettingsStore(config); empty.Load(); Check(empty.Read().Enabled && empty.Read().BaseUrl == Settings.FlagshipRouterBaseUrl, "never-configured install migrates to FlagshipRouter");
+File.WriteAllText(config, JsonSerializer.Serialize(new Settings(false, Settings.FlagshipRouterBaseUrl, "gpt-6-astra", "kept-key"))); var stale = new SettingsStore(config); stale.Load(); Check(stale.Read().Model == Settings.FlagshipRouterModel && stale.Read().ApiKey == "kept-key" && !stale.Read().Enabled && stale.LoadError != null, "dead router default model repaired, key and disabled flag preserved");
 store.Save(settings with { ApiKey = "saved-secret" });
 var reloaded = new SettingsStore(config); reloaded.Load(); Check(reloaded.Read().ApiKey == "saved-secret", "settings persist");
 Check(!JsonSerializer.Serialize(reloaded.Public()).Contains("saved-secret"), "config GET does not reveal key");
