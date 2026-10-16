@@ -50,6 +50,7 @@ internal static class Program
             Console.WriteLine("  5) Set game folder");
             Console.WriteLine("  6) Setup FlagshipRouter (clone, install, start, point mod at it)");
             Console.WriteLine("  7) Setup keyless Ollama (local, no accounts or keys)");
+            Console.WriteLine("  8) Save Groq key (validate, connect router, point mod)");
             Console.WriteLine("  0) Exit");
             Console.Write("Choice: ");
             string choice = (Console.ReadLine() ?? "").Trim();
@@ -91,6 +92,25 @@ internal static class Program
                         GameDir.Resolve(cfg, interactive: true);
                         Store.SaveConfig(cfg);
                         await OllamaLocal.SetupFlowAsync(cfg.GameDir, null, ct);
+                        break;
+                    case "8":
+                        GameDir.Resolve(cfg, interactive: true);
+                        Store.SaveConfig(cfg);
+                        Console.Write("Groq key (gsk_...): ");
+                        string gkey = (Console.ReadLine() ?? "").Trim();
+                        Console.Write("Dashboard password [123456]: ");
+                        string dpass = (Console.ReadLine() ?? "").Trim();
+                        if (dpass == "") dpass = "123456";
+                        string rkey = "";
+                        try
+                        {
+                            string sp = Path.Combine(cfg.GameDir, "CustomAI", "settings.json");
+                            using var sdoc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(sp));
+                            if (sdoc.RootElement.TryGetProperty("apiKey", out var sk) && sk.ValueKind == System.Text.Json.JsonValueKind.String)
+                                rkey = sk.GetString() ?? "";
+                        }
+                        catch { }
+                        await FlagshipRouter.SaveGroqKeyFlowAsync(cfg.GameDir, gkey, dpass, rkey, null, ct);
                         break;
                     case "0":
                     case "q":

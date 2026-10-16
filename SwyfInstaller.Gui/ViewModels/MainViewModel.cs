@@ -310,6 +310,27 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task SaveGroqKeyAsync()
+    {
+        if (IsBusy) return;
+        if (!RequireGameFolder("Groq key setup")) return;
+        var dlg = new GroqKeyDialog { Owner = Application.Current.MainWindow };
+        if (dlg.ShowDialog() != true) return;
+        string groqKey = dlg.ApiKey;
+        string dashboardPassword = dlg.DashboardPassword;
+        string routerKey = ReadModApiKey();
+        await RunOpAsync(async (log, _, ct) =>
+        {
+            FlagshipStatus = "Groq key: validating and saving…";
+            int code = await SwyfInstaller.FlagshipRouter.SaveGroqKeyFlowAsync(GameDir.Trim(), groqKey, dashboardPassword, routerKey, log, ct);
+            FlagshipStatus = code == 0 ? "Groq connected — F8 > Test Connection, then Save Settings."
+                                       : "Groq setup needs attention — see Details.";
+            return code;
+        },
+            "Saving Groq key into FlagshipRouter…");
+    }
+
+    [RelayCommand]
     private void CopyLog()
     {
         try

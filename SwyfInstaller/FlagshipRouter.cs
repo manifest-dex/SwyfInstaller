@@ -256,9 +256,9 @@ public static class FlagshipRouter
                 string name = (end >= 0 ? rest.Substring(0, end) : rest).Trim().Trim('"');
                 if (name.Length > 0) provider = name.Length > 40 ? name.Substring(0, 40) : name;
             }
-            return "Router HTTP " + status + ": no credentials for provider '" + provider + "'. Open " + DashboardUrl
-                + " > Models, click Connect on a '" + provider + "' model (or open " + DashboardUrl + "/providers/" + provider + " directly),"
-                + " paste the key (Groq free: https://console.groq.com/keys), then press Test router.";
+            return "Router HTTP " + status + ": no credentials for provider '" + provider + "'. Press 'Save Groq key' in this installer and paste the key"
+                + " (Groq free: https://console.groq.com/keys), or open " + DashboardUrl
+                + " > Models, click Connect on a '" + provider + "' model (direct: " + DashboardUrl + "/providers/" + provider + "), then press Test router.";
         }
         if (body.Contains("FreeTierError"))
             return "Router HTTP " + status + ": OpenCode's free tier only works inside OpenCode itself, not via the router. "
@@ -271,6 +271,97 @@ public static class FlagshipRouter
             return "Router HTTP " + status + ": bad or missing router key. Create one in " + DashboardUrl
                 + " > Endpoint & Key, paste it into F8 > API key, Save Settings, then Test again. (" + snippet + ")";
         return "Router returned HTTP " + status + ": " + snippet;
+    }
+
+    public sealed class RouterSession : IDisposable
+    {
+        public HttpClient Http { get; }
+        private readonly HttpClientHandler handler;
+        public RouterSession()
+        {
+            handler = new HttpClientHandler { CookieContainer = new System.Net.CookieContainer(), UseCookies = true };
+            Http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
+        }
+        public void Dispose() { Http.Dispose(); handler.Dispose(); }
+    }
+
+    public static async Task<RouterSession> LoginRouterAsync(string dashboardPassword, IProgress<string> log = null, CancellationToken ct = default)
+    {
+        var session = new RouterSession();
+        try
+        {
+            using var res = await session.Http.PostAsync("http://127.0.0.1:20128/api/auth/login",
+                new StringContent(JsonSerializer.Serialize(new { password = dashboardPassword ?? "" }),
+                    System.Text.Encoding.UTF8, "application/json"), ct);
+            string body = await res.Content.ReadAsStringAsync(ct);
+            if (!res.IsSuccessStatusCode || !body.Contains("\"success\":true"))
+                throw new InvalidOperationException("Dashboard login failed. If you changed the dashboard password from 123456, open "
+                    + DashboardUrl + " > Models, click Connect on a Groq model, and paste the key there instead.");
+            Say(log, "Dashboard login OK.");
+            return session;
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            session.Dispose();
+            throw new InvalidOperationException("Could not reach the dashboard login: " + ex.Message);
+        }
+    }
+
+    public static async Task ValidateGroqKeyAsync(RouterSession session, string groqKey, IProgress<string> log = null, CancellationToken ct = default)
+    {
+        using var res = await session.Http.PostAsync("http://127.0.0.1:20128/api/providers/validate",
+            new StringContent(JsonSerializer.Serialize(new { provider = "groq", apiKey = groqKey }),
+                System.Text.Encoding.UTF8, "application/json"), ct);
+        string body = await res.Content.ReadAsStringAsync(ct);
+        if (!res.IsSuccessStatusCode || !body.Contains("\"valid\":true"))
+            throw new InvalidOperationException("Groq rejected the key (" + (int)res.StatusCode + "). Check it at https://console.groq.com/keys and retry. (" + (body.Length > 200 ? body.Substring(0, 200) : body) + ")");
+        Say(log, "Groq key validated.");
+    }
+
+    public static async Task EnsureGroqConnectionAsync(RouterSession session, string groqKey, IProgress<string> log = null, CancellationToken ct = default)
+    {
+        using var res = await session.Http.PostAsync("http://127.0.0.1:20128/api/providers",
+            new StringContent(JsonSerializer.Serialize(new
+            {
+                provider = "groq",
+                name = "Groq",
+                apiKey = groqKey,
+                priority = 1,
+                testStatus = "active",
+                allowOverwrite = true,
+            }), System.Text.Encoding.UTF8, "application/json"), ct);
+        string body = await res.Content.ReadAsStringAsync(ct);
+        if (!res.IsSuccessStatusCode)
+            throw new InvalidOperationException("Could not save the Groq connection (HTTP " + (int)res.StatusCode + "). Open "
+                + DashboardUrl + "/providers/groq and paste the key there instead. (" + (body.Length > 200 ? body.Substring(0, 200) : body) + ")");
+        Say(log, "Groq connection saved in FlagshipRouter.");
+    }
+
+    public static async Task<int> SaveGroqKeyFlowAsync(string gameDir, string groqKey, string dashboardPassword, string routerKey, IProgress<string> log = null, CancellationToken ct = default)
+    {
+        if (!GameDir.IsGameDir(gameDir)) throw new InvalidOperationException("Pick a valid game folder first.");
+        if (string.IsNullOrWhiteSpace(groqKey)) throw new InvalidOperationException("Paste a Groq key first.");
+        if (!await IsRunningAsync(ct))
+            throw new InvalidOperationException("FlagshipRouter is not running. Press Setup FlagshipRouter first.");
+        using var session = await LoginRouterAsync(dashboardPassword ?? "123456", log, ct);
+        await ValidateGroqKeyAsync(session, groqKey.Trim(), log, ct);
+        await EnsureGroqConnectionAsync(session, groqKey.Trim(), log, ct);
+        EnsureModSettings(gameDir, routerKey, log);
+        string key = routerKey;
+        if (string.IsNullOrEmpty(key))
+        {
+            try
+            {
+                string path = Path.Combine(gameDir, "CustomAI", "settings.json");
+                using var doc = JsonDocument.Parse(File.ReadAllText(path));
+                if (doc.RootElement.TryGetProperty("apiKey", out var k) && k.ValueKind == JsonValueKind.String)
+                    key = k.GetString() ?? "";
+            }
+            catch { }
+        }
+        Say(log, await TestRouterAsync(string.IsNullOrEmpty(key) ? null : key, ct));
+        Say(log, "Done: Groq connected, mod pointed at " + DefaultModel + ". F8 > Test Connection, then Save Settings.");
+        return 0;
     }
 
     public static async Task<int> SetupFlowAsync(string gameDir, bool startServer, IProgress<string> log = null, IProgress<double> progress = null, CancellationToken ct = default)
