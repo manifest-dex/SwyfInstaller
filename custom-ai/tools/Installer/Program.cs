@@ -148,7 +148,7 @@ public static class Program
                 if (oldConfig != null) File.WriteAllBytes(legacyConfig, oldConfig);
                 throw;
             }
-            Console.WriteLine("Installed. Use the AI Settings button or F8 to open the panel. Existing settings are preserved; new installs auto-enable FlagshipRouter (http://127.0.0.1:20128/v1, oc/union-alpha).");
+            Console.WriteLine("Installed. Use the AI Settings button or F8 to open the panel. Existing settings are preserved; new installs auto-enable FlagshipRouter (http://127.0.0.1:20128/v1, groq/llama-3.3-70b-versatile).");
             if (steamAppId != null)
                 Process.Start(new ProcessStartInfo("steam://rungameid/" + steamAppId) { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden });
             return 0;
@@ -169,7 +169,7 @@ public static class Program
                 {
                   "enabled": true,
                   "baseUrl": "http://127.0.0.1:20128/v1",
-                  "model": "oc/union-alpha",
+                  "model": "groq/llama-3.3-70b-versatile",
                   "apiKey": "",
                   "temperature": null,
                   "topP": null,

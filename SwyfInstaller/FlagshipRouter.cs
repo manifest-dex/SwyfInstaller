@@ -7,7 +7,7 @@ public static class FlagshipRouter
 {
     public const string RepoUrl = "https://github.com/theRizwan/FlagshipRouter.git";
     public const string DefaultBaseUrl = "http://127.0.0.1:20128/v1";
-    public const string DefaultModel = "oc/union-alpha";
+    public const string DefaultModel = "groq/llama-3.3-70b-versatile";
     public const int DefaultPort = 20128;
     public const string HealthUrl = "http://127.0.0.1:20128/api/health";
     public const string DashboardUrl = "http://localhost:20128/dashboard";
@@ -237,8 +237,31 @@ public static class FlagshipRouter
         using var res = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
         string body = await res.Content.ReadAsStringAsync(cts.Token);
         if (!res.IsSuccessStatusCode)
-            throw new InvalidOperationException("Router returned HTTP " + (int)res.StatusCode + ": " + (body.Length > 300 ? body.Substring(0, 300) : body));
+            throw new InvalidOperationException(FriendlyRouterError((int)res.StatusCode, body));
         return "Router OK (" + body.Length + " bytes).";
+    }
+
+    public static string FriendlyRouterError(int status, string body)
+    {
+        string snippet = body.Length > 300 ? body.Substring(0, 300) : body;
+        if (body.Contains("No active credentials for provider:"))
+        {
+            string provider = body.Split("No active credentials for provider:")[1].Trim(' ', '"', '}', '\n', '\r');
+            if (provider.Length > 40) provider = provider.Substring(0, 40);
+            return "Router HTTP " + status + ": no credentials for provider '" + provider + "'. Open " + DashboardUrl
+                + " > Providers, connect " + provider + " (Groq free: https://console.groq.com/keys), then press Test router.";
+        }
+        if (body.Contains("FreeTierError"))
+            return "Router HTTP " + status + ": OpenCode's free tier only works inside OpenCode itself, not via the router. "
+                + "Open " + DashboardUrl + " > Models and pick a Ready model from a connected provider (Groq free recommended), "
+                + "put it in F8 > Model ID, Save Settings, then Test again.";
+        if (body.Contains("Model is unavailable"))
+            return "Router HTTP " + status + ": that model is not served upstream right now. Open " + DashboardUrl
+                + " > Models, pick a model marked Ready, put it in F8 > Model ID, Save Settings, then Test again.";
+        if (status == 401 || status == 403)
+            return "Router HTTP " + status + ": bad or missing router key. Create one in " + DashboardUrl
+                + " > Endpoint & Key, paste it into F8 > API key, Save Settings, then Test again. (" + snippet + ")";
+        return "Router returned HTTP " + status + ": " + snippet;
     }
 
     public static async Task<int> SetupFlowAsync(string gameDir, bool startServer, IProgress<string> log = null, IProgress<double> progress = null, CancellationToken ct = default)
@@ -263,7 +286,8 @@ public static class FlagshipRouter
             Say(log, "Source ready at " + InstallDir + ". Start it with: npm run launch -- --host 127.0.0.1");
         }
         EnsureModSettings(gameDir, null, log);
-        Say(log, "Next: open " + DashboardUrl + " > Endpoint & Key (create a key if required) > Models (pick a Ready model). Then press Test router.");
+        Say(log, "Next: connect a provider — Groq free is fastest for the game's 15s deadline: create a key at https://console.groq.com/keys, "
+            + "open " + DashboardUrl + " > Providers > Groq, paste it, then open Models and confirm a Groq model is Ready. Then press Test router.");
         return 0;
     }
 }
