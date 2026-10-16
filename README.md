@@ -31,7 +31,7 @@ synthesis are handled by the game and are not modified.
    [FlagshipRouter](https://github.com/theRizwan/FlagshipRouter) (`npm run launch`,
    port `20128`), start the game, host a lobby, and press **F8** (or AI Settings)
    to verify **Use custom provider** is on with `http://127.0.0.1:20128/v1` /
-   `groq/llama-3.3-70b-versatile` and **Save Settings** if you changed anything.
+   `groq/openai/gpt-oss-120b` and **Save Settings** if you changed anything.
 
 Guests don't need anything. New calls use your saved settings.
 
@@ -83,7 +83,7 @@ If **F8 / AI Settings does nothing**, close the game and run
 
 The installer backs up the original assemblies under
 `<game>/CustomAI/backup/`. Custom AI is **auto-enabled on first installation
-with FlagshipRouter defaults** (`http://127.0.0.1:20128/v1`, `groq/llama-3.3-70b-versatile`,
+with FlagshipRouter defaults** (`http://127.0.0.1:20128/v1`, `groq/openai/gpt-oss-120b`,
 no key).
 Reinstalling preserves your provider settings.
 
@@ -102,13 +102,13 @@ Fresh installs already use this. Full setup from the installer app:
    (OpenCode `oc/*` models look free but upstream blocks non-OpenCode clients,
    so they fail with `FreeTierError` — don't use them.)
 3. In the installer press **Test router**. If it reports missing credentials, connect that provider first; if 401, paste a dashboard key into F8. Then in-game press F8, verify **Use custom provider** is on with
-   `http://127.0.0.1:20128/v1` / `groq/llama-3.3-70b-versatile`, and **Save Settings**.
+   `http://127.0.0.1:20128/v1` / `groq/openai/gpt-oss-120b`, and **Save Settings**.
 
 Manual equivalent: `git clone https://github.com/theRizwan/FlagshipRouter.git`,
 `npm run launch -- --host 127.0.0.1`, then same dashboard steps.
 
 - **Base URL:** `http://127.0.0.1:20128/v1`
-- **Model ID:** `groq/llama-3.3-70b-versatile`
+- **Model ID:** `groq/openai/gpt-oss-120b`
 - **API key:** dashboard key if required, else blank
 - **Output mode:** JSON Schema (default)
 
@@ -187,7 +187,7 @@ an actual call. Keep responses within the game's **15-second deadline**. Do
 not append `/chat/completions` to the Base URLs below.
 
 - **FlagshipRouter (local gateway, default):** Base URL
-  `http://127.0.0.1:20128/v1`, model `groq/llama-3.3-70b-versatile`, blank key,
+  `http://127.0.0.1:20128/v1`, model `groq/openai/gpt-oss-120b`, blank key,
   **JSON Schema**. From [theRizwan/FlagshipRouter](https://github.com/theRizwan/FlagshipRouter):
   `npm run launch` starts the server on port `20128` (dashboard + `/v1`).
   Create a key under **Endpoint & Key** if your router requires one, pick a

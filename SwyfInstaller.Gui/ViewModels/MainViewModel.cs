@@ -335,7 +335,7 @@ public partial class MainViewModel : ObservableObject
     {
         const string setup =
             "Base URL: http://127.0.0.1:20128/v1\n" +
-            "Model ID: groq/llama-3.3-70b-versatile\n" +
+            "Model ID: groq/openai/gpt-oss-120b\n" +
             "API key: create one in FlagshipRouter dashboard > Endpoint & Key if required, else leave blank (https://github.com/theRizwan/FlagshipRouter)";
         try
         {
