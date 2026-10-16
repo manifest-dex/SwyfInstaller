@@ -112,8 +112,23 @@ Manual equivalent: `git clone https://github.com/theRizwan/FlagshipRouter.git`,
 - **API key:** dashboard key if required, else blank
 - **Output mode:** JSON Schema (default)
 
-The installer app shows this same setup with a one-click copy button. If you
-prefer OpenRouter instead:
+The installer app shows this same setup with a one-click copy button.
+
+### Keyless option (local Ollama, no accounts, no keys)
+
+1. Install from [ollama.com/download](https://ollama.com/download), start Ollama.
+2. Pull a fast model with structured-output support: `ollama pull llama3.1`
+   (bigger option on a strong PC: `ollama pull qwen2.5:32b`). No cloud bill,
+   but needs enough RAM/VRAM and the model must stay loaded to answer inside
+   the game's 15-second deadline — preload once with `ollama run llama3.1 "hi"`.
+3. In the installer press **Setup keyless Ollama** (or F8 → **Use local Ollama
+   (keyless)** and type your pulled model name from `ollama list`).
+4. F8 → **Test Connection**, then **Save Settings**.
+
+Base URL `http://127.0.0.1:11434/v1`, blank key, exact name from `ollama list`,
+JSON Schema mode. The router is bypassed entirely on this path.
+
+If you prefer OpenRouter instead:
 
 - **Base URL:** `https://openrouter.ai/api/v1`
 - **Model ID:** `meta-llama/llama-3.3-70b-instruct`

@@ -279,6 +279,22 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex) { MessageBox.Show("Could not open dashboard: " + ex.Message, "Dashboard", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 
+    [RelayCommand]
+    private async Task SetupKeylessOllamaAsync()
+    {
+        if (IsBusy) return;
+        if (!RequireGameFolder("keyless Ollama setup")) return;
+        await RunOpAsync(async (log, _, ct) =>
+        {
+            FlagshipStatus = "Keyless Ollama: checking…";
+            int code = await SwyfInstaller.OllamaLocal.SetupFlowAsync(GameDir.Trim(), log, ct);
+            FlagshipStatus = code == 0 ? "Keyless Ollama: mod points at local Ollama — F8 > Test Connection, then Save."
+                                       : "Keyless Ollama: see steps in Details — install/pull first, then run again.";
+            return code;
+        },
+            "Setting up keyless local Ollama…");
+    }
+
     private string ReadModApiKey()
     {
         try

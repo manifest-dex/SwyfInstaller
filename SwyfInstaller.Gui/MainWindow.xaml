@@ -72,6 +72,9 @@
                             <ui:Button Content="Setup FlagshipRouter" Command="{Binding SetupFlagshipRouterCommand}" Padding="10,3" FontSize="11"
                                        Margin="0,0,8,0" Appearance="Primary"
                                        ToolTip="Clone/update %LOCALAPPDATA%\FlagshipRouter, npm install, start on 127.0.0.1:20128, point mod settings at it." />
+                            <ui:Button Content="Setup keyless Ollama" Command="{Binding SetupKeylessOllamaCommand}" Padding="10,3" FontSize="11"
+                                       Margin="0,0,8,0"
+                                       ToolTip="Point the mod directly at local Ollama (http://127.0.0.1:11434/v1). No accounts, no keys. Install Ollama + pull a model first." />
                             <ui:Button Content="Test router" Command="{Binding TestFlagshipRouterCommand}" Padding="10,3" FontSize="11"
                                        Margin="0,0,8,0"
                                        ToolTip="POST a tiny chat completion to 127.0.0.1:20128 with the saved mod key." />
