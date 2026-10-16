@@ -49,21 +49,43 @@ public static class FlagshipRouter
 
     private static async Task<int> RunAsync(string file, string args, string workDir, IProgress<string> log, bool visibleWindow, CancellationToken ct)
     {
-        Say(log, "> " + file + " " + args);
-        var psi = new ProcessStartInfo(file, args)
+        // .cmd/.bat/.ps1 must go through the shell; direct CreateProcess on them fails with exit 1 and no output.
+        bool viaShell = file.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase)
+            || file.EndsWith(".bat", StringComparison.OrdinalIgnoreCase)
+            || file.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
+        string realFile = viaShell ? (OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/sh") : file;
+        string realArgs = viaShell ? (OperatingSystem.IsWindows() ? "/c \"" + file + " " + args + "\"" : "-c \"" + file + " " + args + "\"") : args;
+        Say(log, "> " + (viaShell ? realFile + " " + realArgs : file + " " + args));
+        var psi = new ProcessStartInfo(realFile, realArgs)
         {
             WorkingDirectory = workDir,
-            UseShellExecute = visibleWindow,
-            CreateNoWindow = !visibleWindow,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
         };
         using var p = Process.Start(psi);
         if (p == null) throw new InvalidOperationException("Could not start " + file);
-        if (visibleWindow)
+        var stdout = new System.Text.StringBuilder();
+        var stderr = new System.Text.StringBuilder();
+        p.OutputDataReceived += (_, e) => { if (e.Data != null) { stdout.AppendLine(e.Data); try { log?.Report("  " + e.Data); } catch { } } };
+        p.ErrorDataReceived += (_, e) => { if (e.Data != null) { stderr.AppendLine(e.Data); try { log?.Report("  " + e.Data); } catch { } } };
+        p.BeginOutputReadLine();
+        p.BeginErrorReadLine();
+        try { await p.WaitForExitAsync(ct); }
+        catch
         {
-            await p.WaitForExitAsync(ct);
-            return p.ExitCode;
+            try { p.Kill(entireProcessTree: true); } catch { }
+            throw;
         }
-        await p.WaitForExitAsync(ct);
+        if (p.ExitCode != 0)
+        {
+            string tail = stderr.ToString();
+            if (tail.Length == 0) tail = stdout.ToString();
+            if (tail.Length > 2000) tail = "...\n" + tail.Substring(tail.Length - 2000);
+            Say(log, file + " " + args + " failed (exit " + p.ExitCode + ").");
+            if (tail.Trim().Length > 0) Say(log, tail.Trim());
+        }
         return p.ExitCode;
     }
 
@@ -140,8 +162,10 @@ public static class FlagshipRouter
         }
         string npm = OperatingSystem.IsWindows() ? "npm.cmd" : "npm";
         Say(log, "Installing FlagshipRouter dependencies (first run takes a few minutes) ...");
-        int code = await RunAsync(npm, "install", dir, log, false, ct);
-        if (code != 0) throw new InvalidOperationException("npm install failed (exit " + code + ").");
+        await RunAsync("node", "--version", dir, log, false, ct);
+        await RunAsync(npm, "--version", dir, log, false, ct);
+        int code = await RunAsync(npm, "install --no-fund --loglevel error", dir, log, false, ct);
+        if (code != 0) throw new InvalidOperationException("npm install failed (exit " + code + "). Full output is in Details below — check Node 20.9+/22, free disk space, and antivirus quarantine, then retry.");
     }
 
     public static void StartDetached(IProgress<string> log = null)
