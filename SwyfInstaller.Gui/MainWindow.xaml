@@ -65,7 +65,7 @@
                             Base URL <Run FontFamily="Consolas" Text="http://127.0.0.1:20128/v1" />
                         </TextBlock>
                         <TextBlock FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap">
-                            Model <Run FontFamily="Consolas" Text="gpt-6-astra" /> (create a key under Endpoint &amp; Key if the router requires one)
+                            Model <Run FontFamily="Consolas" Text="oc/union-alpha" /> (create a key under Endpoint &amp; Key if the router requires one)
                         </TextBlock>
                         <TextBlock Text="{Binding FlagshipStatus}" FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap" Margin="0,4,0,0" />
                         <WrapPanel Orientation="Horizontal" Margin="0,6,0,0">

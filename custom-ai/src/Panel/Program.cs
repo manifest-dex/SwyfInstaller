@@ -20,7 +20,7 @@ public sealed record Settings(bool Enabled = true, string BaseUrl = Settings.Fla
     // FlagshipRouter (https://github.com/theRizwan/FlagshipRouter) is the default
     // local OpenAI-compatible gateway. Fresh installs are auto-enabled against it.
     public const string FlagshipRouterBaseUrl = "http://127.0.0.1:20128/v1";
-    public const string FlagshipRouterModel = "gpt-6-astra";
+    public const string FlagshipRouterModel = "oc/union-alpha";
     public static Settings FlagshipRouterDefault() => new(true, FlagshipRouterBaseUrl, FlagshipRouterModel, "");
     public static bool IsUnconfigured(Settings s) =>
         !s.UseManifestDeX && string.IsNullOrWhiteSpace(s.BaseUrl) && string.IsNullOrWhiteSpace(s.Model) && s.ApiKey == ""

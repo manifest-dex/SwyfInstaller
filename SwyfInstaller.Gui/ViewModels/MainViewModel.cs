@@ -319,7 +319,7 @@ public partial class MainViewModel : ObservableObject
     {
         const string setup =
             "Base URL: http://127.0.0.1:20128/v1\n" +
-            "Model ID: gpt-6-astra\n" +
+            "Model ID: oc/union-alpha\n" +
             "API key: create one in FlagshipRouter dashboard > Endpoint & Key if required, else leave blank (https://github.com/theRizwan/FlagshipRouter)";
         try
         {

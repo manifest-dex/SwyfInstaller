@@ -7,7 +7,7 @@ public static class FlagshipRouter
 {
     public const string RepoUrl = "https://github.com/theRizwan/FlagshipRouter.git";
     public const string DefaultBaseUrl = "http://127.0.0.1:20128/v1";
-    public const string DefaultModel = "gpt-6-astra";
+    public const string DefaultModel = "oc/union-alpha";
     public const int DefaultPort = 20128;
     public const string HealthUrl = "http://127.0.0.1:20128/api/health";
     public const string DashboardUrl = "http://localhost:20128/dashboard";

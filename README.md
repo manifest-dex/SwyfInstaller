@@ -31,7 +31,7 @@ synthesis are handled by the game and are not modified.
    [FlagshipRouter](https://github.com/theRizwan/FlagshipRouter) (`npm run launch`,
    port `20128`), start the game, host a lobby, and press **F8** (or AI Settings)
    to verify **Use custom provider** is on with `http://127.0.0.1:20128/v1` /
-   `gpt-6-astra` and **Save Settings** if you changed anything.
+   `oc/union-alpha` and **Save Settings** if you changed anything.
 
 Guests don't need anything. New calls use your saved settings.
 
@@ -83,7 +83,7 @@ If **F8 / AI Settings does nothing**, close the game and run
 
 The installer backs up the original assemblies under
 `<game>/CustomAI/backup/`. Custom AI is **auto-enabled on first installation
-with FlagshipRouter defaults** (`http://127.0.0.1:20128/v1`, `gpt-6-astra`,
+with FlagshipRouter defaults** (`http://127.0.0.1:20128/v1`, `oc/union-alpha`,
 no key).
 Reinstalling preserves your provider settings.
 
@@ -98,16 +98,16 @@ Fresh installs already use this. Full setup from the installer app:
 2. Open `http://localhost:20128/dashboard` (default password `123456`, change
    under Settings). Go to **Endpoint & Key**, create a key if your setup
    requires one. Go to **Models**, pick a model marked **Ready**
-   (`gpt-6-astra` works out of the box; OpenCode Free models need no signup).
+   (`oc/union-alpha` works out of the box; OpenCode Free models need no signup).
 3. In the installer press **Test router**. If it reports 401, paste the dashboard
    key into F8. Then in-game press F8, verify **Use custom provider** is on with
-   `http://127.0.0.1:20128/v1` / `gpt-6-astra`, and **Save Settings**.
+   `http://127.0.0.1:20128/v1` / `oc/union-alpha`, and **Save Settings**.
 
 Manual equivalent: `git clone https://github.com/theRizwan/FlagshipRouter.git`,
 `npm run launch -- --host 127.0.0.1`, then same dashboard steps.
 
 - **Base URL:** `http://127.0.0.1:20128/v1`
-- **Model ID:** `gpt-6-astra`
+- **Model ID:** `oc/union-alpha`
 - **API key:** dashboard key if required, else blank
 - **Output mode:** JSON Schema (default)
 
@@ -171,7 +171,7 @@ an actual call. Keep responses within the game's **15-second deadline**. Do
 not append `/chat/completions` to the Base URLs below.
 
 - **FlagshipRouter (local gateway, default):** Base URL
-  `http://127.0.0.1:20128/v1`, model `gpt-6-astra`, blank key,
+  `http://127.0.0.1:20128/v1`, model `oc/union-alpha`, blank key,
   **JSON Schema**. From [theRizwan/FlagshipRouter](https://github.com/theRizwan/FlagshipRouter):
   `npm run launch` starts the server on port `20128` (dashboard + `/v1`).
   Create a key under **Endpoint & Key** if your router requires one, pick a
