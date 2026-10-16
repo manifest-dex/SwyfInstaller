@@ -230,7 +230,7 @@ public static class FlagshipRouter
             {
                 model = DefaultModel,
                 messages = new[] { new { role = "user", content = "Reply with one short greeting." } },
-                max_tokens = 32,
+                max_tokens = 256,
             }), System.Text.Encoding.UTF8, "application/json");
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(20));

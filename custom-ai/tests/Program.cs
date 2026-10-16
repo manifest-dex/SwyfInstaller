@@ -73,6 +73,7 @@ fake.MapPost("/{**path}", async (HttpContext ctx) =>
     if (path.Contains("redirect")) { ctx.Response.StatusCode = 307; ctx.Response.Headers.Location = "/v1/chat/completions"; return; }
     if (path.Contains("invalid")) { await ctx.Response.WriteAsync("broken"); return; }
     if (path.Contains("oversize")) { await ctx.Response.WriteAsync(new string('x', Provider.MaxResponse + 10)); return; }
+    if (path.Contains("trailing")) { await ctx.Response.WriteAsync(JsonSerializer.Serialize(Response("{\"dialogue\":\"Hello, I am listening.\",\"trust_percent\":50,\"emotion\":\"NEUTRAL\",\"completed_objectives\":[]}")) + "\ndata: [DONE]\n\n"); return; }
     if (path.Contains("wrong-schema")) { await ctx.Response.WriteAsJsonAsync(Response("{\"dialogue\":\"hi\"}")); return; }
     var content = JsonNode.Parse(greeting)!;
     if (observed?["response_format"]?["json_schema"]?["name"]?.ToString() == "gameplay_caller_turn") content["completed_objectives"] = path.Contains("bad-objectives") ? new JsonArray(42) : new JsonArray();
@@ -105,6 +106,8 @@ beforeSampling = requests;
 await provider.Complete(samplingInput, settings with { BaseUrl = url + "/no-sampling" }, false, default);
 Check(requests == beforeSampling + 1, "learned model capabilities avoid repeated failed requests");
 await Failure(async () => await provider.Complete(samplingInput, settings with { BaseUrl = url + "/no-sampling", Temperature = .3 }, false, default), "model_parameters");
+await provider.Complete(input, settings with { BaseUrl = url + "/trailing" }, false, default);
+Check(true, "gateway SSE trailer tolerated");
 await provider.Complete(samplingInput, settings with { BaseUrl = url + "/v1" }, false, default);
 Check(observed!["temperature"] != null && observed["top_p"] != null, "other providers keep inherited defaults");
 foreach (var pair in new[] { ("unauthorized", "auth"), ("missing", "model_or_endpoint"), ("rate", "rate_limit"), ("redirect", "provider_http"), ("invalid", "invalid_response"), ("oversize", "size") })

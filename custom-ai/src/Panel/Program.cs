@@ -190,6 +190,15 @@ public sealed class Provider : IDisposable
         return result.ToArray();
     }
 
+    public static JsonObject ParseRouterJson(byte[] bytes)
+    {
+        // Some gateways append an SSE terminator ("data: [DONE]") to JSON bodies.
+        var text = Encoding.UTF8.GetString(bytes);
+        int sse = text.IndexOf("\ndata:", StringComparison.Ordinal);
+        if (sse >= 0) text = text.Substring(0, sse);
+        return JsonNode.Parse(text) as JsonObject ?? throw new JsonException();
+    }
+
     public static string ExtractText(JsonObject response)
     {
         var content = response["choices"]?[0]?["message"]?["content"];
@@ -261,7 +270,7 @@ public sealed class Provider : IDisposable
                 };
             }
             var bytes = await ReadBounded(await response.Content.ReadAsStreamAsync(token), MaxResponse, token);
-            var json = JsonNode.Parse(bytes) as JsonObject ?? throw new JsonException();
+            var json = ParseRouterJson(bytes);
             ExtractText(json);
             LastError = null;
             Interlocked.Increment(ref Completed);
@@ -366,7 +375,7 @@ public static class Program
             var settings = store.Merge(input);
             if (settings.UseManifestDeX) { await manifest.RequireAvailable(ctx.RequestAborted); settings = manifest.Effective(settings); }
             var body = JsonNode.Parse("""
-                {"messages":[{"role":"user","content":"Reply in English with a short greeting. Set trust_percent to 50, emotion to NEUTRAL, and completed_objectives to an empty array."}],"max_tokens":128,"response_format":{"type":"json_schema","json_schema":{"name":"gameplay_caller_turn","strict":true,"schema":{"type":"object","properties":{"dialogue":{"type":"string"},"trust_percent":{"type":"integer","minimum":0,"maximum":100},"emotion":{"type":"string","enum":["TRUSTING","SUSPICIOUS","ANGRY","NEUTRAL"]},"completed_objectives":{"type":"array","items":{"type":"string"}}},"required":["dialogue","trust_percent","emotion","completed_objectives"],"additionalProperties":false}}}}
+                {"messages":[{"role":"user","content":"Reply in English with a short greeting. Set trust_percent to 50, emotion to NEUTRAL, and completed_objectives to an empty array."}],"max_tokens":512,"response_format":{"type":"json_schema","json_schema":{"name":"gameplay_caller_turn","strict":true,"schema":{"type":"object","properties":{"dialogue":{"type":"string"},"trust_percent":{"type":"integer","minimum":0,"maximum":100},"emotion":{"type":"string","enum":["TRUSTING","SUSPICIOUS","ANGRY","NEUTRAL"]},"completed_objectives":{"type":"array","items":{"type":"string"}}},"required":["dialogue","trust_percent","emotion","completed_objectives"],"additionalProperties":false}}}}
                 """)!.AsObject();
             GameProbe.ApplyInstalledSchema(body, startup.ConfigPath);
             // Match the normal caller defaults so a passing test also exercises model compatibility.
