@@ -65,15 +65,26 @@
                             Base URL <Run FontFamily="Consolas" Text="http://127.0.0.1:20128/v1" />
                         </TextBlock>
                         <TextBlock FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap">
-                            Model <Run FontFamily="Consolas" Text="gpt-6-astra" /> (no key — start FlagshipRouter first)
+                            Model <Run FontFamily="Consolas" Text="gpt-6-astra" /> (create a key under Endpoint &amp; Key if the router requires one)
                         </TextBlock>
-                        <TextBlock FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap" Margin="0,2,0,0">
-                            Get it here: <Hyperlink NavigateUri="https://github.com/theRizwan/FlagshipRouter" RequestNavigate="Link_RequestNavigate">theRizwan/FlagshipRouter</Hyperlink>
-                            — fresh installs are already enabled for this.
+                        <TextBlock Text="{Binding FlagshipStatus}" FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        <WrapPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <ui:Button Content="Setup FlagshipRouter" Command="{Binding SetupFlagshipRouterCommand}" Padding="10,3" FontSize="11"
+                                       Margin="0,0,8,0" Appearance="Primary"
+                                       ToolTip="Clone/update %LOCALAPPDATA%\FlagshipRouter, npm install, start on 127.0.0.1:20128, point mod settings at it." />
+                            <ui:Button Content="Test router" Command="{Binding TestFlagshipRouterCommand}" Padding="10,3" FontSize="11"
+                                       Margin="0,0,8,0"
+                                       ToolTip="POST a tiny chat completion to 127.0.0.1:20128 with the saved mod key." />
+                            <ui:Button Content="Open dashboard" Command="{Binding OpenFlagshipDashboardCommand}" Padding="10,3" FontSize="11"
+                                       Margin="0,0,8,0"
+                                       ToolTip="Open http://localhost:20128/dashboard (default password 123456)." />
+                            <ui:Button Content="Copy setup" Command="{Binding CopyRecommendedCommand}" Padding="10,3" FontSize="11"
+                                       ToolTip="Copy the FlagshipRouter base URL and model." />
+                        </WrapPanel>
+                        <TextBlock FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap" Margin="0,6,0,0">
+                            Full flow: Setup FlagshipRouter → dashboard <Run FontFamily="Consolas" Text="Endpoint &amp; Key" /> (create key if required) → <Run FontFamily="Consolas" Text="Models" /> (pick Ready) → Test router → F8 → Save Settings.
+                            Source: <Hyperlink NavigateUri="https://github.com/theRizwan/FlagshipRouter" RequestNavigate="Link_RequestNavigate">theRizwan/FlagshipRouter</Hyperlink>
                         </TextBlock>
-                        <ui:Button Content="Copy setup" Command="{Binding CopyRecommendedCommand}" Padding="10,3" FontSize="11"
-                                   Margin="0,6,0,0" HorizontalAlignment="Left"
-                                   ToolTip="Copy the FlagshipRouter base URL and model." />
                     </StackPanel>
                 </Border>
 

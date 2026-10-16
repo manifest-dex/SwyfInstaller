@@ -48,6 +48,7 @@ internal static class Program
             Console.WriteLine("  3) Verify installed files");
             Console.WriteLine("  4) Uninstall");
             Console.WriteLine("  5) Set game folder");
+            Console.WriteLine("  6) Setup FlagshipRouter (clone, install, start, point mod at it)");
             Console.WriteLine("  0) Exit");
             Console.Write("Choice: ");
             string choice = (Console.ReadLine() ?? "").Trim();
@@ -79,6 +80,11 @@ internal static class Program
                         cfg.GameDir = "";
                         GameDir.Resolve(cfg, interactive: true);
                         Store.SaveConfig(cfg);
+                        break;
+                    case "6":
+                        GameDir.Resolve(cfg, interactive: true);
+                        Store.SaveConfig(cfg);
+                        await FlagshipRouter.SetupFlowAsync(cfg.GameDir, startServer: true, null, null, ct);
                         break;
                     case "0":
                     case "q":

@@ -16,6 +16,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isGameFolderValid;
     [ObservableProperty] private string _installedTag = "";
     [ObservableProperty] private string _statusMessage = "Ready. Pick Install to download the latest mod.";
+    [ObservableProperty] private string _flagshipStatus = "FlagshipRouter: not checked yet.";
     [ObservableProperty] private double _progress;
     [ObservableProperty] private bool _isProgressIndeterminate;
     [ObservableProperty] private bool _isBusy;
@@ -238,6 +239,61 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task SetupFlagshipRouterAsync()
+    {
+        if (IsBusy) return;
+        if (!RequireGameFolder("FlagshipRouter setup")) return;
+        if (MessageBox.Show("Set up FlagshipRouter (clone/update source, npm install if needed, start it on 127.0.0.1:20128) and point the mod at it?\n\nYour existing API key in settings.json is preserved.",
+                "Set up FlagshipRouter",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        await RunOpAsync(async (log, bar, ct) =>
+        {
+            FlagshipStatus = "FlagshipRouter: setting up…";
+            int code = await SwyfInstaller.FlagshipRouter.SetupFlowAsync(GameDir.Trim(), startServer: true, log, bar, ct);
+            bool running = await SwyfInstaller.FlagshipRouter.IsRunningAsync(ct);
+            FlagshipStatus = running ? "FlagshipRouter: running on 127.0.0.1:20128 — create a key under Endpoint & Key if required, then Test router."
+                                     : "FlagshipRouter: source ready, start it from its terminal, then Test router.";
+            return code;
+        }, "Setting up FlagshipRouter… cloning, installing, starting.");
+    }
+
+    [RelayCommand]
+    private async Task TestFlagshipRouterAsync()
+    {
+        if (IsBusy) return;
+        await RunOpAsync(async (log, _, ct) =>
+        {
+            FlagshipStatus = "FlagshipRouter: testing…";
+            string key = ReadModApiKey();
+            string result = await SwyfInstaller.FlagshipRouter.TestRouterAsync(string.IsNullOrEmpty(key) ? null : key, ct);
+            AppendLog(result);
+            FlagshipStatus = "FlagshipRouter: " + result + " If this fails with 401, create a key in the dashboard and paste it into F8.";
+            return 0;
+        }, "Testing FlagshipRouter…");
+    }
+
+    [RelayCommand]
+    private void OpenFlagshipDashboard()
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(SwyfInstaller.FlagshipRouter.DashboardUrl) { UseShellExecute = true }); }
+        catch (Exception ex) { MessageBox.Show("Could not open dashboard: " + ex.Message, "Dashboard", MessageBoxButton.OK, MessageBoxImage.Warning); }
+    }
+
+    private string ReadModApiKey()
+    {
+        try
+        {
+            string path = System.IO.Path.Combine(GameDir.Trim(), "CustomAI", "settings.json");
+            if (!System.IO.File.Exists(path)) return "";
+            using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(path));
+            if (doc.RootElement.TryGetProperty("apiKey", out var k) && k.ValueKind == System.Text.Json.JsonValueKind.String)
+                return k.GetString() ?? "";
+        }
+        catch { }
+        return "";
+    }
+
+    [RelayCommand]
     private void CopyLog()
     {
         try
@@ -264,7 +320,7 @@ public partial class MainViewModel : ObservableObject
         const string setup =
             "Base URL: http://127.0.0.1:20128/v1\n" +
             "Model ID: gpt-6-astra\n" +
-            "API key: (none — leave blank. Start FlagshipRouter first: https://github.com/theRizwan/FlagshipRouter)";
+            "API key: create one in FlagshipRouter dashboard > Endpoint & Key if required, else leave blank (https://github.com/theRizwan/FlagshipRouter)";
         try
         {
             Clipboard.SetText(setup);

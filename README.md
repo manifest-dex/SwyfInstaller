@@ -89,14 +89,26 @@ Reinstalling preserves your provider settings.
 
 ## Recommended setup (FlagshipRouter, default)
 
-Fresh installs already use this — just start
-[FlagshipRouter](https://github.com/theRizwan/FlagshipRouter) first (default
-port `20128`, OpenAI-compatible at `/v1`), then press **Test Connection** in
-F8. No API key needed for the default model.
+Fresh installs already use this. Full setup from the installer app:
+
+1. Press **Setup FlagshipRouter** (needs Node 20.9+ and git). It clones/updates
+   `%LOCALAPPDATA%\FlagshipRouter`, runs `npm install` if needed, starts it on
+   `127.0.0.1:20128`, and points `<game>/CustomAI/settings.json` at it
+   (existing API key preserved).
+2. Open `http://localhost:20128/dashboard` (default password `123456`, change
+   under Settings). Go to **Endpoint & Key**, create a key if your setup
+   requires one. Go to **Models**, pick a model marked **Ready**
+   (`gpt-6-astra` works out of the box; OpenCode Free models need no signup).
+3. In the installer press **Test router**. If it reports 401, paste the dashboard
+   key into F8. Then in-game press F8, verify **Use custom provider** is on with
+   `http://127.0.0.1:20128/v1` / `gpt-6-astra`, and **Save Settings**.
+
+Manual equivalent: `git clone https://github.com/theRizwan/FlagshipRouter.git`,
+`npm run launch -- --host 127.0.0.1`, then same dashboard steps.
 
 - **Base URL:** `http://127.0.0.1:20128/v1`
 - **Model ID:** `gpt-6-astra`
-- **API key:** leave blank (or use your router key if you created one)
+- **API key:** dashboard key if required, else blank
 - **Output mode:** JSON Schema (default)
 
 The installer app shows this same setup with a one-click copy button. If you
