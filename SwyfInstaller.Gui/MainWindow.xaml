@@ -60,20 +60,20 @@
 
                 <Border Padding="10" CornerRadius="6" BorderBrush="#22ffffff" BorderThickness="1" Margin="0,0,0,12">
                     <StackPanel>
-                        <TextBlock Text="Recommended setup (enter in F8)" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBlock Text="FlagshipRouter setup (default, auto-enabled)" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4" />
                         <TextBlock FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap">
-                            Base URL <Run FontFamily="Consolas" Text="https://openrouter.ai/api/v1" />
+                            Base URL <Run FontFamily="Consolas" Text="http://127.0.0.1:20128/v1" />
                         </TextBlock>
                         <TextBlock FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap">
-                            Model <Run FontFamily="Consolas" Text="meta-llama/llama-3.3-70b-instruct" />
+                            Model <Run FontFamily="Consolas" Text="gpt-6-astra" /> (no key — start FlagshipRouter first)
                         </TextBlock>
                         <TextBlock FontSize="11" Foreground="#9ca3af" TextWrapping="Wrap" Margin="0,2,0,0">
-                            Key: <Hyperlink NavigateUri="https://openrouter.ai/workspaces/default/keys" RequestNavigate="Link_RequestNavigate">create one here</Hyperlink>
-                            — shown only once, copy it right away.
+                            Get it here: <Hyperlink NavigateUri="https://github.com/theRizwan/FlagshipRouter" RequestNavigate="Link_RequestNavigate">theRizwan/FlagshipRouter</Hyperlink>
+                            — fresh installs are already enabled for this.
                         </TextBlock>
                         <ui:Button Content="Copy setup" Command="{Binding CopyRecommendedCommand}" Padding="10,3" FontSize="11"
                                    Margin="0,6,0,0" HorizontalAlignment="Left"
-                                   ToolTip="Copy the recommended base URL, model and key link." />
+                                   ToolTip="Copy the FlagshipRouter base URL and model." />
                     </StackPanel>
                 </Border>
 

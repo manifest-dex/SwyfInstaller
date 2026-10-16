@@ -118,7 +118,8 @@ using (var cancel = new CancellationTokenSource(150))
 }
 await Failure(async () => await provider.Complete(input, settings with { BaseUrl = url + "/slow" }, false, default), "timeout");
 var config = Path.Combine(output, "settings.json");
-var store = new SettingsStore(config); store.Load(); Check(!store.Read().Enabled, "first launch disabled");
+var store = new SettingsStore(config); store.Load(); Check(store.Read().Enabled && store.Read().BaseUrl == Settings.FlagshipRouterBaseUrl && store.Read().Model == Settings.FlagshipRouterModel, "first launch auto-enables FlagshipRouter");
+File.WriteAllText(config, "{}"); var empty = new SettingsStore(config); empty.Load(); Check(empty.Read().Enabled && empty.Read().BaseUrl == Settings.FlagshipRouterBaseUrl, "never-configured install migrates to FlagshipRouter");
 store.Save(settings with { ApiKey = "saved-secret" });
 var reloaded = new SettingsStore(config); reloaded.Load(); Check(reloaded.Read().ApiKey == "saved-secret", "settings persist");
 Check(!JsonSerializer.Serialize(reloaded.Public()).Contains("saved-secret"), "config GET does not reveal key");

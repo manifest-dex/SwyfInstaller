@@ -27,9 +27,11 @@ synthesis are handled by the game and are not modified.
    fills in the game folder itself. If it can't, press **Detect** or **Browse**
    to the folder Steam opens via
    right-click game → Properties → Installed Files → Browse. Close the game first.
-3. **Press Install, then play** — press **Install**, wait for "Done", start the
-   game, host a lobby, and press **F8** (or AI Settings) to enter your provider
-   details and **Save Settings**.
+3. **Press Install, then play** — press **Install**, wait for "Done", start
+   [FlagshipRouter](https://github.com/theRizwan/FlagshipRouter) (`npm run launch`,
+   port `20128`), start the game, host a lobby, and press **F8** (or AI Settings)
+   to verify **Use custom provider** is on with `http://127.0.0.1:20128/v1` /
+   `gpt-6-astra` and **Save Settings** if you changed anything.
 
 Guests don't need anything. New calls use your saved settings.
 
@@ -80,10 +82,25 @@ If **F8 / AI Settings does nothing**, close the game and run
 **Install Custom AI.cmd** again.
 
 The installer backs up the original assemblies under
-`<game>/CustomAI/backup/`. Custom AI is **disabled on first installation**.
+`<game>/CustomAI/backup/`. Custom AI is **auto-enabled on first installation
+with FlagshipRouter defaults** (`http://127.0.0.1:20128/v1`, `gpt-6-astra`,
+no key).
 Reinstalling preserves your provider settings.
 
-## Recommended setup (enter in F8)
+## Recommended setup (FlagshipRouter, default)
+
+Fresh installs already use this — just start
+[FlagshipRouter](https://github.com/theRizwan/FlagshipRouter) first (default
+port `20128`, OpenAI-compatible at `/v1`), then press **Test Connection** in
+F8. No API key needed for the default model.
+
+- **Base URL:** `http://127.0.0.1:20128/v1`
+- **Model ID:** `gpt-6-astra`
+- **API key:** leave blank (or use your router key if you created one)
+- **Output mode:** JSON Schema (default)
+
+The installer app shows this same setup with a one-click copy button. If you
+prefer OpenRouter instead:
 
 - **Base URL:** `https://openrouter.ai/api/v1`
 - **Model ID:** `meta-llama/llama-3.3-70b-instruct`
@@ -91,8 +108,6 @@ Reinstalling preserves your provider settings.
   [openrouter.ai/keys](https://openrouter.ai/workspaces/default/keys).
   It is shown **only once** right after you create it — copy it immediately
   into the F8 panel. If you lost it, create a new key.
-
-The installer app shows this same setup with a one-click copy button.
 
 ## Configure your provider
 
@@ -143,6 +158,12 @@ model will work.** After choosing a model, run **Test Connection**, then try
 an actual call. Keep responses within the game's **15-second deadline**. Do
 not append `/chat/completions` to the Base URLs below.
 
+- **FlagshipRouter (local gateway, default):** Base URL
+  `http://127.0.0.1:20128/v1`, model `gpt-6-astra`, blank key,
+  **JSON Schema**. From [theRizwan/FlagshipRouter](https://github.com/theRizwan/FlagshipRouter):
+  `npm run launch` starts the server on port `20128` (dashboard + `/v1`).
+  Create a key under **Endpoint & Key** if your router requires one, pick a
+  **Ready** model under **Models**, then Test Connection in F8.
 - **Google Gemini API (cloud free tier):** Base URL
   `https://generativelanguage.googleapis.com/v1beta/openai`, key from
   [Google AI Studio](https://aistudio.google.com/), a current Free Tier Flash
