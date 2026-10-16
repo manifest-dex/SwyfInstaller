@@ -96,9 +96,10 @@ Fresh installs already use this. Full setup from the installer app:
    `127.0.0.1:20128`, and points `<game>/CustomAI/settings.json` at it
    (existing API key preserved).
 2. Open `http://localhost:20128/dashboard` (default password `123456`, change
-   under Settings). Connect **Groq** under **Providers** — free key at
-   `https://console.groq.com/keys` (fastest for the game's 15-second deadline).
-   Then go to **Models** and confirm a Groq model shows **Ready**.
+   under Settings). Go to **Models**, click **Connect** on a Groq model
+   (or open `http://localhost:20128/dashboard/providers/groq` directly) and
+   paste a free key from `https://console.groq.com/keys` — fastest for the
+   game's 15-second deadline. Confirm a Groq model shows **Ready** in Models.
    (OpenCode `oc/*` models look free but upstream blocks non-OpenCode clients,
    so they fail with `FreeTierError` — don't use them.)
 3. In the installer press **Test router**. If it reports missing credentials, connect that provider first; if 401, paste a dashboard key into F8. Then in-game press F8, verify **Use custom provider** is on with

@@ -257,7 +257,8 @@ public static class FlagshipRouter
                 if (name.Length > 0) provider = name.Length > 40 ? name.Substring(0, 40) : name;
             }
             return "Router HTTP " + status + ": no credentials for provider '" + provider + "'. Open " + DashboardUrl
-                + " > Providers, connect " + provider + " (Groq free: https://console.groq.com/keys), then press Test router.";
+                + " > Models, click Connect on a '" + provider + "' model (or open " + DashboardUrl + "/providers/" + provider + " directly),"
+                + " paste the key (Groq free: https://console.groq.com/keys), then press Test router.";
         }
         if (body.Contains("FreeTierError"))
             return "Router HTTP " + status + ": OpenCode's free tier only works inside OpenCode itself, not via the router. "
@@ -295,7 +296,8 @@ public static class FlagshipRouter
         }
         EnsureModSettings(gameDir, null, log);
         Say(log, "Next: connect a provider — Groq free is fastest for the game's 15s deadline: create a key at https://console.groq.com/keys, "
-            + "open " + DashboardUrl + " > Providers > Groq, paste it, then open Models and confirm a Groq model is Ready. Then press Test router.");
+            + "open " + DashboardUrl + " > Models, click Connect on a Groq model (or " + DashboardUrl + "/providers/groq directly), paste it,"
+            + " then open Models and confirm a Groq model is Ready. Then press Test router.");
         return 0;
     }
 }
