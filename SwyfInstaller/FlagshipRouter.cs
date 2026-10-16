@@ -246,8 +246,16 @@ public static class FlagshipRouter
         string snippet = body.Length > 300 ? body.Substring(0, 300) : body;
         if (body.Contains("No active credentials for provider:"))
         {
-            string provider = body.Split("No active credentials for provider:")[1].Trim(' ', '"', '}', '\n', '\r');
-            if (provider.Length > 40) provider = provider.Substring(0, 40);
+            string provider = "that provider";
+            string marker = "No active credentials for provider:";
+            int at = body.IndexOf(marker, StringComparison.Ordinal);
+            if (at >= 0)
+            {
+                string rest = body.Substring(at + marker.Length).TrimStart(' ', '"');
+                int end = rest.IndexOfAny(new[] { '"', '}', ',', '\n', '\r' });
+                string name = (end >= 0 ? rest.Substring(0, end) : rest).Trim().Trim('"');
+                if (name.Length > 0) provider = name.Length > 40 ? name.Substring(0, 40) : name;
+            }
             return "Router HTTP " + status + ": no credentials for provider '" + provider + "'. Open " + DashboardUrl
                 + " > Providers, connect " + provider + " (Groq free: https://console.groq.com/keys), then press Test router.";
         }
