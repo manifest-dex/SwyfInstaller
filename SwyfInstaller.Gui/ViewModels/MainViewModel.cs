@@ -262,13 +262,13 @@ public partial class MainViewModel : ObservableObject
     private void CopyRecommended()
     {
         const string setup =
-            "Base URL: https://openrouter.ai/api/v1\n" +
-            "Model ID: meta-llama/llama-3.3-70b-instruct\n" +
-            "API key: create one at https://openrouter.ai/workspaces/default/keys (shown only once — copy it right away)";
+            "Base URL: http://127.0.0.1:20128/v1\n" +
+            "Model ID: gpt-6-astra\n" +
+            "API key: (none — leave blank. Start FlagshipRouter first: https://github.com/theRizwan/FlagshipRouter)";
         try
         {
             Clipboard.SetText(setup);
-            StatusMessage = "Recommended setup copied — paste it into the F8 panel in-game.";
+            StatusMessage = "FlagshipRouter setup copied — paste it into the F8 panel in-game.";
         }
         catch (Exception ex)
         {

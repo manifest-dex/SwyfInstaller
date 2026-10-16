@@ -36,7 +36,8 @@ namespace Swyf.CustomAI
         {
             try
             {
-                if (!File.Exists(ConfigPath)) return false;
+                // No settings file yet means a fresh install: auto-enabled with FlagshipRouter defaults.
+                if (!File.Exists(ConfigPath)) return true;
                 var value = JObject.Parse(File.ReadAllText(ConfigPath))["enabled"];
                 return value == null || value.Type != JTokenType.Boolean || value.Value<bool>();
             }

@@ -14,8 +14,18 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 namespace Swyf.CustomAI;
 
 public sealed record Startup(string InternalToken, string BrowserToken, string ConfigPath, int ParentId);
-public sealed record Settings(bool Enabled = false, string BaseUrl = "", string Model = "", string ApiKey = "",
-    double? Temperature = null, double? TopP = null, int? MaxTokens = null, string OutputMode = "schema", bool UseManifestDeX = false);
+public sealed record Settings(bool Enabled = true, string BaseUrl = Settings.FlagshipRouterBaseUrl, string Model = Settings.FlagshipRouterModel, string ApiKey = "",
+    double? Temperature = null, double? TopP = null, int? MaxTokens = null, string OutputMode = "schema", bool UseManifestDeX = false)
+{
+    // FlagshipRouter (https://github.com/theRizwan/FlagshipRouter) is the default
+    // local OpenAI-compatible gateway. Fresh installs are auto-enabled against it.
+    public const string FlagshipRouterBaseUrl = "http://127.0.0.1:20128/v1";
+    public const string FlagshipRouterModel = "gpt-6-astra";
+    public static Settings FlagshipRouterDefault() => new(true, FlagshipRouterBaseUrl, FlagshipRouterModel, "");
+    public static bool IsUnconfigured(Settings s) =>
+        !s.UseManifestDeX && string.IsNullOrWhiteSpace(s.BaseUrl) && string.IsNullOrWhiteSpace(s.Model) && s.ApiKey == ""
+        && s.Temperature == null && s.TopP == null && s.MaxTokens == null && (s.OutputMode is "schema" or "json");
+}
 public sealed record SettingsInput(bool Enabled, string BaseUrl, string Model, string? ApiKey = null,
     bool ClearApiKey = false, double? Temperature = null, double? TopP = null, int? MaxTokens = null, string OutputMode = "schema", bool UseManifestDeX = false);
 public sealed class ApiFailure(int status, string code, string message, int? retryAfter = null) : Exception(message)
@@ -29,7 +39,7 @@ public sealed class SettingsStore(string path)
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private readonly object gate = new();
-    private Settings current = new();
+    private Settings current = Settings.FlagshipRouterDefault();
     public string? LoadError { get; private set; }
     public Settings Read() { lock (gate) return current; }
 
@@ -37,8 +47,11 @@ public sealed class SettingsStore(string path)
     {
         try
         {
-            if (!File.Exists(path)) return;
+            if (!File.Exists(path)) { current = Settings.FlagshipRouterDefault(); return; }
             current = JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), Json) ?? throw new JsonException();
+            // Fresh/never-configured installs (empty disabled settings) auto-enable FlagshipRouter.
+            if (!current.Enabled && Settings.IsUnconfigured(current))
+                current = Settings.FlagshipRouterDefault();
             Validate(current, current.Enabled);
         }
         catch

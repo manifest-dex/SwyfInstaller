@@ -135,6 +135,7 @@ public static class Program
                 AtomicCopy(bridge, Path.Combine(managed, BridgeName));
                 foreach (var name in GameFiles) AtomicCopy(Path.Combine(stage, name), Path.Combine(managed, name));
                 File.Delete(legacyConfig);
+                EnsureFlagshipRouterDefaults(mod);
                 var installed = new Manifest(7, records.ToArray()) { Extra = manifest?.Extra };
                 File.WriteAllText(manifestPath + ".tmp", JsonSerializer.Serialize(installed, new JsonSerializerOptions { WriteIndented = true }));
                 File.Move(manifestPath + ".tmp", manifestPath, true);
@@ -147,7 +148,7 @@ public static class Program
                 if (oldConfig != null) File.WriteAllBytes(legacyConfig, oldConfig);
                 throw;
             }
-            Console.WriteLine("Installed. Use the AI Settings button or F8 to open the panel. Existing settings are preserved; new configurations start disabled.");
+            Console.WriteLine("Installed. Use the AI Settings button or F8 to open the panel. Existing settings are preserved; new installs auto-enable FlagshipRouter (http://127.0.0.1:20128/v1, gpt-6-astra).");
             if (steamAppId != null)
                 Process.Start(new ProcessStartInfo("steam://rungameid/" + steamAppId) { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden });
             return 0;
@@ -156,6 +157,30 @@ public static class Program
     }
 
     private static bool ValidHash(string? value) => value?.Length == 64 && value.All(Uri.IsHexDigit);
+
+    private static void EnsureFlagshipRouterDefaults(string mod)
+    {
+        // Fresh installs are auto-enabled against FlagshipRouter; existing settings are untouched.
+        try
+        {
+            var settingsPath = Path.Combine(mod, "settings.json");
+            if (File.Exists(settingsPath)) return;
+            File.WriteAllText(settingsPath, """
+                {
+                  "enabled": true,
+                  "baseUrl": "http://127.0.0.1:20128/v1",
+                  "model": "gpt-6-astra",
+                  "apiKey": "",
+                  "temperature": null,
+                  "topP": null,
+                  "maxTokens": null,
+                  "outputMode": "schema",
+                  "useManifestDeX": false
+                }
+                """);
+        }
+        catch { }
+    }
 
     private static void RequireHash(string path, string expected)
     {
