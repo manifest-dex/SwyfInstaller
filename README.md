@@ -35,7 +35,7 @@ synthesis are handled by the game and are not modified.
 
 Guests don't need anything. New calls use your saved settings.
 
-**Moving from the Playtest:** Installer v2.1.1 detects the full release through
+**Moving from the Playtest:** Installer v1.1.6 detects the full release through
 Steam (app 4954910, normally `steamapps/common/Scam With Your Friends`). When
 both editions are installed, a saved Playtest selection switches to the full
 release. Press **Install** to apply the mod there, then check your settings with
@@ -236,7 +236,7 @@ or modified game DLLs.
 
 ## Troubleshooting
 
-Custom AI v2.1.1 targets full release build **25965579** (Steam app **4954910**).
+Custom AI v1.1.6 targets full release build **25965579** (Steam app **4954910**).
 With custom AI enabled,
 prompt preparation uses the game's shipped local rules; turning custom AI off
 preserves the original game route. The hosted service accepts bounded caller
