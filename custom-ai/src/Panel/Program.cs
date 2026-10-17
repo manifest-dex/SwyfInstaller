@@ -381,6 +381,9 @@ public static class Program
             // Match the normal caller defaults so a passing test also exercises model compatibility.
             body["temperature"] = 0.9;
             body["top_p"] = 0.95;
+            // The probe schema is the full installed game schema; make sure the model has room.
+            if (body["max_tokens"] is JsonValue _mt && _mt.TryGetValue<int>(out var _mtv) && _mtv < 512)
+                body["max_tokens"] = 512;
             var watch = Stopwatch.StartNew();
             var response = await provider.Complete(body, settings, false, ctx.RequestAborted);
             try
